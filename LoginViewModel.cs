@@ -7,14 +7,12 @@ using Prism.Navigation;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
 using Shiny;
-using Supabase;
-using Supabase.Gotrue;
 
 namespace GpsSync;
 
 public class LoginViewModel : ViewModel
 {
-	private readonly Supabase.Client supabase;
+	private readonly IBackendClient backend;
 
 	[Reactive]
 	public string Email { get; set; } = string.Empty;
@@ -46,10 +44,10 @@ public class LoginViewModel : ViewModel
 
 	public ICommand ForgotPassword { get; }
 
-	public LoginViewModel(BaseServices services, Supabase.Client supabase)
+	public LoginViewModel(BaseServices services, IBackendClient backend)
 		: base(services)
 	{
-		this.supabase = supabase;
+		this.backend = backend;
 		this.WhenAnyValue((LoginViewModel x) => x.ErrorMessage).Subscribe(delegate(string msg)
 		{
 			HasError = !string.IsNullOrEmpty(msg);
@@ -66,28 +64,26 @@ public class LoginViewModel : ViewModel
 			base.IsBusy = true;
 			try
 			{
-				Session session = await this.supabase.Auth.SignIn(Email, Password);
-				if (session?.User != null)
+				AuthResult auth = await this.backend.LoginAsync(Email.Trim(), Password);
+				if (auth?.User != null)
 				{
 					// Single-device enforcement for non-admin accounts
 					try
 					{
-						var profile = await this.supabase.From<ProfileRecord>()
-							.Filter("user_id", Supabase.Postgrest.Constants.Operator.Equals, session.User.Id)
-							.Single();
-
-						if (profile != null && !profile.IsAdmin)
+						if (!auth.User.IsAdmin)
 						{
+							var profile = await this.backend.GetProfileAsync(auth.User.Id);
 							string storedToken = await SecureStorage.Default.GetAsync("device.session_token");
 							// Another device is active — ask the user before displacing it
-							if (!string.IsNullOrEmpty(profile.ActiveDeviceToken) && !string.IsNullOrEmpty(storedToken) && storedToken != profile.ActiveDeviceToken)
+							if (profile != null && !string.IsNullOrEmpty(profile.ActiveDeviceToken)
+								&& !string.IsNullOrEmpty(storedToken) && storedToken != profile.ActiveDeviceToken)
 							{
 								bool proceed = await Dialogs.Confirm(
 									"This account is currently signed in on another device. Signing in here will sign out that device. Do you want to continue?",
 									"Account Active on Another Device");
 								if (!proceed)
 								{
-									await this.supabase.Auth.SignOut();
+									await this.backend.LogoutAsync();
 									return;
 								}
 								// User confirmed — fall through to overwrite the token below
@@ -95,25 +91,17 @@ public class LoginViewModel : ViewModel
 							// Register this device as the sole active device
 							string newToken = Guid.NewGuid().ToString();
 							await SecureStorage.Default.SetAsync("device.session_token", newToken);
-							await this.supabase.From<ProfileRecord>()
-								.Filter("user_id", Supabase.Postgrest.Constants.Operator.Equals, session.User.Id ?? string.Empty)
-								.Set(x => x.ActiveDeviceToken, newToken)
-								.Update();
+							await this.backend.UpdateProfileAsync(auth.User.Id, activeDeviceToken: newToken);
 						}
 					}
 					catch
 					{
 						// Fail safe: cannot verify device authorization — block login
-						await this.supabase.Auth.SignOut();
+						await this.backend.LogoutAsync();
 						ErrorMessage = "Unable to verify device authorization. Check your connection and try again.";
 						return;
 					}
 
-					if (session.AccessToken != null && session.RefreshToken != null)
-					{
-						await SecureStorage.Default.SetAsync("sb.access_token", session.AccessToken);
-						await SecureStorage.Default.SetAsync("sb.refresh_token", session.RefreshToken);
-					}
 					await base.Navigation.NavigateAsync("/NavigationPage/MainPage");
 				}
 			}

@@ -8,14 +8,12 @@ using Microsoft.Maui.Storage;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
 using Shiny;
-using Supabase;
-using Supabase.Postgrest;
 
 namespace GpsSync;
 
 public class AdminJobsViewModel : ViewModel
 {
-	private readonly Supabase.Client supabase;
+	private readonly IBackendClient backend;
 
 	[Reactive]
 	public List<AdminJobItem>? PendingJobs { get; set; }
@@ -39,26 +37,26 @@ public class AdminJobsViewModel : ViewModel
 
 	public ICommand ClearCompleted { get; }
 
-	public AdminJobsViewModel(BaseServices services, Supabase.Client supabase)
+	public AdminJobsViewModel(BaseServices services, IBackendClient backend)
 		: base(services)
 	{
-		this.supabase = supabase;
+		this.backend = backend;
 		Load = ReactiveCommand.CreateFromTask((Func<Task>)async delegate
 		{
 			// Fetch profiles for name lookup
 			var profiles = new Dictionary<string, string>();
 			try
 			{
-				foreach (var p in (await this.supabase.From<ProfileRecord>().Select("*").Get()).Models)
+				foreach (var p in await this.backend.ListProfilesAsync())
 					profiles[p.UserId] = !string.IsNullOrWhiteSpace(p.DisplayName) ? p.DisplayName.Trim()
 						: !string.IsNullOrWhiteSpace(p.Email) ? p.Email.Trim()
 						: p.UserId;
 			}
 			catch { }
 
-			List<DispatchJobRecord> all = (await this.supabase.From<DispatchJobRecord>().Order("created_at", Constants.Ordering.Descending).Get()).Models;
+			var all = await this.backend.GetJobsAsync();
 
-			AdminJobItem ToItem(DispatchJobRecord j) => new AdminJobItem
+			AdminJobItem ToItem(BackendJob j) => new AdminJobItem
 			{
 				Id = j.Id,
 				Title = j.Title,
@@ -69,9 +67,9 @@ public class AdminJobsViewModel : ViewModel
 				EngineerName = profiles.TryGetValue(j.EngineerUserId, out var name) ? name : j.EngineerUserId
 			};
 
-			PendingJobs = all.Where((DispatchJobRecord j) => j.Status == "Pending").Select(ToItem).ToList();
-			InProgressJobs = all.Where((DispatchJobRecord j) => j.Status == "In Progress").Select(ToItem).ToList();
-			CompletedJobs = all.Where((DispatchJobRecord j) => j.Status == "Completed").Take(30).Select(ToItem).ToList();
+			PendingJobs = all.Where(j => j.Status == "Pending").Select(ToItem).ToList();
+			InProgressJobs = all.Where(j => j.Status == "In Progress").Select(ToItem).ToList();
+			CompletedJobs = all.Where(j => j.Status == "Completed").Take(30).Select(ToItem).ToList();
 			HasPending = PendingJobs.Count > 0;
 			HasInProgress = InProgressJobs.Count > 0;
 			HasCompleted = CompletedJobs.Count > 0;
@@ -81,7 +79,7 @@ public class AdminJobsViewModel : ViewModel
 		{
 			if (await base.Dialogs.Confirm("Remove all completed jobs from the board?", "Clear Completed"))
 			{
-				await this.supabase.From<DispatchJobRecord>().Filter("status", Constants.Operator.Equals, "Completed").Delete();
+				await this.backend.ClearCompletedJobsAsync();
 				Load.Execute(null);
 			}
 		}, (IObservable<bool>?)null, (IScheduler?)null);

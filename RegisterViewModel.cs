@@ -6,13 +6,12 @@ using Prism.Navigation;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
 using Shiny;
-using Supabase;
 
 namespace GpsSync;
 
 public class RegisterViewModel : ViewModel
 {
-	private readonly Supabase.Client supabase;
+	private readonly IBackendClient backend;
 
 	[Reactive] public string Email { get; set; } = string.Empty;
 	[Reactive] public string Password { get; set; } = string.Empty;
@@ -23,10 +22,10 @@ public class RegisterViewModel : ViewModel
 	public ICommand Register { get; }
 	public ICommand NavigateBack => ReactiveCommand.CreateFromTask(() => base.Navigation.GoBackAsync());
 
-	public RegisterViewModel(BaseServices services, Supabase.Client supabase)
+	public RegisterViewModel(BaseServices services, IBackendClient backend)
 		: base(services)
 	{
-		this.supabase = supabase;
+		this.backend = backend;
 		this.WhenAnyValue(x => x.ErrorMessage).Subscribe(msg => HasError = !string.IsNullOrEmpty(msg));
 
 		Register = ReactiveCommand.CreateFromTask((Func<Task>)async delegate
@@ -52,27 +51,10 @@ public class RegisterViewModel : ViewModel
 			base.IsBusy = true;
 			try
 			{
-				var newUser = (await this.supabase.Auth.SignUp(Email.Trim(), Password))?.User;
-				if (newUser != null)
-				{
-					try
-					{
-						await this.supabase.From<ProfileRecord>().Insert(new ProfileRecord
-						{
-							UserId = newUser.Id ?? string.Empty,
-							Email = newUser.Email,
-							IsAdmin = false,
-							IsPunchedIn = false
-						});
-					}
-					catch { }
-					await base.Dialogs.Alert("Account created! Check your email to confirm before signing in.", "Success");
-					await base.Navigation.GoBackAsync();
-				}
-				else
-				{
-					ErrorMessage = "Registration failed. Please try again.";
-				}
+				// Server creates the user AND the profile row (see AuthController.Register).
+				await this.backend.RegisterAsync(Email.Trim(), Password);
+				await base.Dialogs.Alert("Account created! You can now sign in.", "Success");
+				await base.Navigation.GoBackAsync();
 			}
 			catch (Exception ex)
 			{

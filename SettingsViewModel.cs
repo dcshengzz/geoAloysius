@@ -13,9 +13,6 @@ using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
 using Shiny;
 using Shiny.Locations;
-using Supabase;
-using Supabase.Gotrue;
-using Supabase.Postgrest;
 
 namespace GpsSync;
 
@@ -23,7 +20,7 @@ public class SettingsViewModel : ViewModel
 {
 	private readonly AppSettings settings;
 	private readonly IGpsManager gpsManager;
-	private readonly Supabase.Client supabase;
+	private readonly IBackendClient backend;
 
 	[Reactive] public bool IsNotificationsEnabled { get; set; }
 	[Reactive] public bool IsDarkMode { get; set; }
@@ -36,13 +33,13 @@ public class SettingsViewModel : ViewModel
 	public ICommand SaveDisplayName { get; }
 	public ICommand Logout { get; }
 
-	public SettingsViewModel(BaseServices services, AppSettings settings, IGpsManager gpsManager, Supabase.Client supabase)
+	public SettingsViewModel(BaseServices services, AppSettings settings, IGpsManager gpsManager, IBackendClient backend)
 		: base(services)
 	{
 		SettingsViewModel settingsViewModel = this;
 		this.settings = settings;
 		this.gpsManager = gpsManager;
-		this.supabase = supabase;
+		this.backend = backend;
 
 		IsNotificationsEnabled = settings.IsNotificationsEnabled;
 		IsDarkMode = Preferences.Default.Get("app.darkmode", defaultValue: false);
@@ -71,22 +68,8 @@ public class SettingsViewModel : ViewModel
 			{
 				try
 				{
-					await settingsViewModel.supabase.Auth.Update(new UserAttributes
-					{
-						Data = new Dictionary<string, object> { ["display_name"] = settingsViewModel.DisplayName.Trim() }
-					});
-					try
-					{
-						string userId = settingsViewModel.supabase.Auth.CurrentUser?.Id;
-						if (!string.IsNullOrEmpty(userId))
-						{
-							await settingsViewModel.supabase.From<ProfileRecord>()
-								.Filter("user_id", Supabase.Postgrest.Constants.Operator.Equals, userId)
-								.Set(x => x.DisplayName, settingsViewModel.DisplayName.Trim())
-								.Update();
-						}
-					}
-					catch { }
+					// Server updates the profile's display_name.
+					await settingsViewModel.backend.UpdateDisplayNameAsync(settingsViewModel.DisplayName.Trim());
 					await settingsViewModel.Dialogs.Alert("Username saved.", "Done");
 				}
 				catch
@@ -106,23 +89,16 @@ public class SettingsViewModel : ViewModel
 			bool confirmed = await settingsViewModel.Dialogs.Confirm("Are you sure you want to sign out?", "Sign Out");
 			if (!confirmed) return;
 			try { await settingsViewModel.gpsManager.StopListener(); } catch { }
-			try { await settingsViewModel.supabase.Auth.SignOut(); } catch { }
-			// Clear single-device token
+			// Clear single-device token on the server BEFORE dropping local auth tokens.
 			try
 			{
-				string userId = settingsViewModel.supabase.Auth.CurrentUser?.Id;
+				string? userId = settingsViewModel.backend.CurrentUserId;
 				if (!string.IsNullOrEmpty(userId))
-				{
-					await settingsViewModel.supabase.From<ProfileRecord>()
-						.Filter("user_id", Supabase.Postgrest.Constants.Operator.Equals, userId)
-						.Set(x => x.ActiveDeviceToken, (string?)null)
-						.Update();
-				}
+					await settingsViewModel.backend.UpdateProfileAsync(userId, clearActiveDeviceToken: true);
 			}
 			catch { }
+			try { await settingsViewModel.backend.LogoutAsync(); } catch { }
 			SecureStorage.Default.Remove("device.session_token");
-			SecureStorage.Default.Remove("sb.access_token");
-			SecureStorage.Default.Remove("sb.refresh_token");
 			// Clear all user-specific notification and badge state so the next account starts clean
 			Preferences.Default.Remove("jobs.notified_ids");
 			Preferences.Default.Remove("jobs.accepted_notified_ids");
@@ -148,28 +124,18 @@ public class SettingsViewModel : ViewModel
 		base.OnAppearing();
 		try
 		{
-			string userId = supabase.Auth.CurrentUser?.Id;
+			string? userId = backend.CurrentUserId;
 			if (!string.IsNullOrEmpty(userId))
 			{
-				var profile = await supabase.From<ProfileRecord>()
-					.Filter("user_id", Supabase.Postgrest.Constants.Operator.Equals, userId)
-					.Single();
+				var profile = await backend.GetProfileAsync(userId);
 				if (profile != null)
 				{
 					IsAdmin = profile.IsAdmin;
-					// Prefer the profile table display_name (admin can update it)
 					if (!string.IsNullOrWhiteSpace(profile.DisplayName))
 						DisplayName = profile.DisplayName;
 				}
 			}
 		}
 		catch { }
-		// Fallback to auth metadata if profile has no name set
-		if (string.IsNullOrWhiteSpace(DisplayName))
-		{
-			var metadata = supabase.Auth.CurrentUser?.UserMetadata;
-			if (metadata != null && metadata.TryGetValue("display_name", out var value))
-				DisplayName = value?.ToString() ?? string.Empty;
-		}
 	}
 }

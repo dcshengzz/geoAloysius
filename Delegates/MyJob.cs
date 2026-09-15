@@ -9,8 +9,6 @@ using Microsoft.Maui.Storage;
 using Shiny.Jobs;
 using Shiny.Notifications;
 using Notification = Shiny.Notifications.Notification;
-using Supabase;
-using Supabase.Postgrest;
 
 namespace GpsSync.Delegates;
 
@@ -20,17 +18,17 @@ public class MyJob : Job
 
 	private readonly AppSettings settings;
 
-	private readonly Supabase.Client supabase;
+	private readonly IBackendClient backend;
 
 	private readonly INotificationManager notifications;
 
-	public MyJob(ILogger<MyJob> logger, AppSettings settings, MySqliteConnection conn, Supabase.Client supabase, INotificationManager notifications)
+	public MyJob(ILogger<MyJob> logger, AppSettings settings, MySqliteConnection conn, IBackendClient backend, INotificationManager notifications)
 		: base(logger)
 	{
 		base.MinimumTime = TimeSpan.FromMinutes(10.0);
 		this.settings = settings;
 		this.conn = conn;
-		this.supabase = supabase;
+		this.backend = backend;
 		this.notifications = notifications;
 	}
 
@@ -41,18 +39,14 @@ public class MyJob : Job
 			Timestamp = DateTimeOffset.UtcNow,
 			IsPunchedIn = settings.IsPunchedIn
 		});
+		await backend.EnsureSessionLoadedAsync();
 		await SyncOfflinePings(cancelToken);
 		await CheckForNewJobs(cancelToken);
 	}
 
 	private async Task SyncOfflinePings(CancellationToken cancelToken)
 	{
-		if (supabase.Auth.CurrentSession == null)
-		{
-			return;
-		}
-		string userId = supabase.Auth.CurrentUser?.Id;
-		if (string.IsNullOrEmpty(userId))
+		if (!backend.IsSignedIn)
 		{
 			return;
 		}
@@ -64,18 +58,8 @@ public class MyJob : Job
 			}
 			if (await RetryWithBackoff(async delegate
 			{
-				await supabase.From<GpsPingRecord>().Insert(new GpsPingRecord
-				{
-					UserId      = userId,
-					DisplayName = Preferences.Default.Get("user.display_name", string.Empty),
-					Latitude    = ping.Latitude,
-					Longitude   = ping.Longitude,
-					CreatedAt   = DateTime.TryParseExact(ping.Timestamp, "yyyy-MM-dd HH:mm:ss",
-					              System.Globalization.CultureInfo.InvariantCulture,
-					              System.Globalization.DateTimeStyles.AssumeLocal, out var ts)
-					              ? new DateTimeOffset(ts).ToUniversalTime()
-					              : DateTimeOffset.UtcNow
-				});
+				await backend.PostPingAsync(ping.Latitude, ping.Longitude,
+					Preferences.Default.Get("user.display_name", string.Empty), cancelToken);
 			}, cancelToken))
 			{
 				ping.Synced = true;
@@ -114,16 +98,16 @@ public class MyJob : Job
 	{
 		try
 		{
-			string userId = supabase.Auth.CurrentUser?.Id;
+			string? userId = backend.CurrentUserId;
 			if (string.IsNullOrEmpty(userId))
 			{
 				return;
 			}
 			string notifiedIds = Preferences.Default.Get("jobs.notified_ids", string.Empty);
 			HashSet<string> notifiedSet = new HashSet<string>(notifiedIds.Split(',', StringSplitOptions.RemoveEmptyEntries));
-			List<DispatchJobRecord> newJobs = (await supabase.From<DispatchJobRecord>().Filter("engineer_user_id", Constants.Operator.Equals, userId).Filter("status", Constants.Operator.Equals, "Pending")
-				.Get()).Models.Where((DispatchJobRecord j) => !notifiedSet.Contains(j.Id.ToString())).ToList();
-			foreach (DispatchJobRecord job in newJobs)
+			var newJobs = (await backend.GetJobsAsync(engineerUserId: userId, status: "Pending", ct: cancelToken))
+				.Where(j => !notifiedSet.Contains(j.Id.ToString())).ToList();
+			foreach (var job in newJobs)
 			{
 				await notifications.Send(new Notification
 				{
@@ -139,8 +123,7 @@ public class MyJob : Job
 		}
 		catch (Exception ex)
 		{
-			Exception ex2 = ex;
-			Debug.WriteLine("Job notification check failed: " + ex2.Message);
+			Debug.WriteLine("Job notification check failed: " + ex.Message);
 		}
 	}
 }

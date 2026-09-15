@@ -5,7 +5,6 @@ using Microsoft.Maui.Storage;
 using Shiny;
 using Shiny.Notifications;
 using Notification = Shiny.Notifications.Notification;
-using Supabase;
 
 namespace GpsSync;
 
@@ -17,7 +16,7 @@ public class GpsWatchdogService : IShinyStartupTask
 
 	private readonly MySqliteConnection conn;
 
-	private readonly Client supabase;
+	private readonly IBackendClient backend;
 
 	private bool alertSent;
 
@@ -25,12 +24,12 @@ public class GpsWatchdogService : IShinyStartupTask
 
 	private IDisposable? staleAlertTimer;
 
-	public GpsWatchdogService(AppSettings settings, INotificationManager notifications, MySqliteConnection conn, Client supabase)
+	public GpsWatchdogService(AppSettings settings, INotificationManager notifications, MySqliteConnection conn, IBackendClient backend)
 	{
 		this.settings = settings;
 		this.notifications = notifications;
 		this.conn = conn;
-		this.supabase = supabase;
+		this.backend = backend;
 	}
 
 	public void Start()
@@ -41,8 +40,6 @@ public class GpsWatchdogService : IShinyStartupTask
 			{
 				DateTimeOffset? lastReal = settings.LastGpsReadingTime;
 				// Only gap-fill if last real GPS was within the last 5 minutes.
-				// If GPS has been off longer than that, stop sending stale location
-				// so the live map correctly reflects the signal loss.
 				bool recentRealReading = lastReal.HasValue && (DateTimeOffset.UtcNow - lastReal.Value) < TimeSpan.FromMinutes(5.0);
 				bool needsGapFill = lastReal.HasValue && (DateTimeOffset.UtcNow - lastReal.Value) > TimeSpan.FromSeconds(15.0);
 				if (recentRealReading && needsGapFill)
@@ -61,8 +58,6 @@ public class GpsWatchdogService : IShinyStartupTask
 			{
 				DateTimeOffset? last = settings.LastGpsReadingTime;
 				DateTimeOffset? punchInTime = settings.PunchInTime;
-				// Only alert if GPS received a reading during this punch-in session but has since gone stale.
-				// Without this check, a stale reading from a previous session would trigger the alert immediately.
 				bool hadReadingThisSession = last.HasValue && punchInTime.HasValue && last.Value >= punchInTime.Value;
 				if (!hadReadingThisSession || DateTimeOffset.UtcNow - last.Value <= TimeSpan.FromMinutes(5.0))
 				{
@@ -94,19 +89,13 @@ public class GpsWatchdogService : IShinyStartupTask
 				Synced = false
 			};
 			await conn.InsertAsync(ping);
-			if (supabase.Auth.CurrentSession != null)
+
+			await backend.EnsureSessionLoadedAsync();
+			if (backend.IsSignedIn)
 			{
 				try
 				{
-					GpsPingRecord record = new GpsPingRecord
-					{
-						UserId      = supabase.Auth.CurrentUser?.Id,
-						DisplayName = Preferences.Default.Get("user.display_name", string.Empty),
-						Latitude    = latitude,
-						Longitude   = longitude,
-						CreatedAt   = DateTimeOffset.UtcNow
-					};
-					await supabase.From<GpsPingRecord>().Insert(record);
+					await backend.PostPingAsync(latitude, longitude, Preferences.Default.Get("user.display_name", string.Empty));
 					ping.Synced = true;
 					await conn.UpdateAsync(ping);
 					Preferences.Default.Set("gps.last_reading_utc", DateTimeOffset.UtcNow.ToString("O"));

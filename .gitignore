@@ -1,0 +1,19 @@
+# .NET build output (app + server)
+[Bb]in/
+[Oo]bj/
+
+# Published API build + runtime log
+server/publish/
+server/api.log
+
+# Local secrets (never commit)
+server/.env
+**/appsettings.Local.json
+
+# User-specific / IDE
+*.user
+.vs/
+.idea/
+
+# MAUI / Android intermediate
+*.binlog

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
@@ -13,15 +13,12 @@ using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
 using Shiny;
 using Prism.Navigation;
-using Supabase;
-using Supabase.Gotrue;
-using Supabase.Postgrest;
 
 namespace GpsSync;
 
 public class EngineerStatusViewModel : ViewModel
 {
-	private readonly Supabase.Client supabase;
+	private readonly IBackendClient backend;
 
 	private IDisposable? autoRefresh;
 	private readonly Dictionary<string, string> _renameCache = new();
@@ -39,10 +36,10 @@ public class EngineerStatusViewModel : ViewModel
 
 	public ICommand Refresh { get; }
 
-	public EngineerStatusViewModel(BaseServices services, Supabase.Client supabase)
+	public EngineerStatusViewModel(BaseServices services, IBackendClient backend)
 		: base(services)
 	{
-		this.supabase = supabase;
+		this.backend = backend;
 		Refresh = ReactiveCommand.CreateFromTask(LoadEngineers);
 	}
 
@@ -69,12 +66,11 @@ public class EngineerStatusViewModel : ViewModel
 		IsBusy = true;
 		try
 		{
-			List<ProfileRecord> engineers = (await supabase.From<ProfileRecord>().Select("*").Get()).Models.Where((ProfileRecord p) => !p.IsAdmin).ToList();
-			Dictionary<string, GpsPingRecord> latestPings = (from p in (await supabase.From<GpsPingRecord>().Select("*").Order("created_at", Supabase.Postgrest.Constants.Ordering.Descending)
-					.Limit(500)
-					.Get()).Models
-				group p by p.UserId).ToDictionary((IGrouping<string, GpsPingRecord> g) => g.Key, (IGrouping<string, GpsPingRecord> g) => g.First());
-			List<EngineerStatusItem> items = (from x in engineers.Select(delegate(ProfileRecord profile)
+			List<BackendProfile> engineers = (await backend.ListProfilesAsync()).Where(p => !p.IsAdmin).ToList();
+			Dictionary<string, BackendPing> latestPings = (await backend.GetLatestPingsAsync())
+				.GroupBy(p => p.UserId)
+				.ToDictionary(g => g.Key, g => g.First());
+			List<EngineerStatusItem> items = (from x in engineers.Select(delegate(BackendProfile profile)
 				{
 					latestPings.TryGetValue(profile.UserId, out var value);
 					string label = _renameCache.TryGetValue(profile.UserId, out var cachedName)
@@ -100,19 +96,14 @@ public class EngineerStatusViewModel : ViewModel
 							(string Title, string Description)? result = await RequestJobDetails(item.DisplayName);
 							if (result.HasValue)
 							{
-								User currentUser = supabase.Auth.CurrentUser;
-								if (currentUser != null)
+								try
 								{
-									await supabase.From<DispatchJobRecord>().Insert(new DispatchJobRecord
-									{
-										EngineerUserId = item.UserId,
-										AdminUserId = (currentUser.Id ?? string.Empty),
-										Title = result.Value.Title,
-										Description = result.Value.Description,
-										Status = "Pending",
-										CreatedAt = DateTime.UtcNow
-									});
+									await backend.CreateJobAsync(item.UserId, result.Value.Title, result.Value.Description);
 									await base.Dialogs.Alert("Job assigned successfully.", "Done");
+								}
+								catch
+								{
+									await base.Dialogs.Alert("Failed to assign job. Please try again.", "Error");
 								}
 							}
 						}
@@ -131,10 +122,7 @@ public class EngineerStatusViewModel : ViewModel
 					string trimmed = newName.Trim();
 					try
 					{
-						await supabase.From<ProfileRecord>()
-							.Filter("user_id", Supabase.Postgrest.Constants.Operator.Equals, item.UserId)
-							.Set(x => x.DisplayName, trimmed)
-							.Update();
+						await backend.UpdateProfileAsync(item.UserId, displayName: trimmed);
 						_renameCache[item.UserId] = trimmed;
 						// Instantly update the item and rebind the collection
 						item.DisplayName = trimmed;
@@ -154,29 +142,18 @@ public class EngineerStatusViewModel : ViewModel
 					autoRefresh = null;
 					try
 					{
-						bool gpsOk = true;
-						bool profileOk = true;
-						try { await supabase.From<GpsPingRecord>().Filter("user_id", Supabase.Postgrest.Constants.Operator.Equals, item.UserId).Delete(); } catch { gpsOk = false; }
-						try { await supabase.From<ProfileRecord>().Filter("user_id", Supabase.Postgrest.Constants.Operator.Equals, item.UserId).Delete(); } catch { profileOk = false; }
-						try
+						bool ok = true;
+						try { await backend.DeleteUserAsync(item.UserId); } catch { ok = false; }
+						if (!ok)
 						{
-							var token = supabase.Auth.CurrentSession?.AccessToken ?? string.Empty;
-							await supabase.Functions.Invoke("delete-user", token, new Supabase.Functions.Client.InvokeFunctionOptions
-							{
-								Body = new Dictionary<string, object> { ["userId"] = item.UserId }
-							});
-						}
-						catch { }
-						if (!profileOk)
-						{
-							await base.Dialogs.Alert("Could not delete engineer from database. You may need to remove them from the Supabase dashboard directly (Authentication > Users and the profiles table).", "Delete Failed");
+							await base.Dialogs.Alert("Could not delete engineer. Please check your connection and try again.", "Delete Failed");
 						}
 						else
 						{
 							var updated = new System.Collections.ObjectModel.ObservableCollection<EngineerStatusItem>(Engineers.Where(e => e.UserId != item.UserId));
 							Engineers = updated;
 							int pi = updated.Count(e => e.StatusText == "Punched In");
-							Summary = $"{pi} punched in  Â·  {updated.Count - pi} punched out";
+							Summary = $"{pi} punched in  ·  {updated.Count - pi} punched out";
 						}
 					}
 					finally

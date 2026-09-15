@@ -10,9 +10,6 @@ using Microsoft.Maui.Storage;
 using Shiny;
 using Notification = Shiny.Notifications.Notification;
 using Shiny.Notifications;
-using Supabase;
-using Supabase.Postgrest;
-using Supabase.Postgrest.Responses;
 
 namespace GpsSync;
 
@@ -20,17 +17,17 @@ public class JobNotificationService : IShinyStartupTask
 {
 	private readonly AppSettings settings;
 
-	private readonly Supabase.Client supabase;
+	private readonly IBackendClient backend;
 
 	private readonly INotificationManager notifications;
 
 	private IDisposable? timer;
 	private readonly Dictionary<string, bool> _lastPunchState = new();
 
-	public JobNotificationService(AppSettings settings, Supabase.Client supabase, INotificationManager notifications)
+	public JobNotificationService(AppSettings settings, IBackendClient backend, INotificationManager notifications)
 	{
 		this.settings = settings;
-		this.supabase = supabase;
+		this.backend = backend;
 		this.notifications = notifications;
 	}
 
@@ -46,7 +43,7 @@ public class JobNotificationService : IShinyStartupTask
 	{
 		try
 		{
-			string userId = supabase.Auth.CurrentUser?.Id;
+			string? userId = backend.CurrentUserId;
 			if (!string.IsNullOrEmpty(userId))
 			{
 				if (settings.IsAdmin)
@@ -71,8 +68,8 @@ public class JobNotificationService : IShinyStartupTask
 	{
 		string notifiedIds = Preferences.Default.Get("jobs.notified_ids", string.Empty);
 		HashSet<string> notifiedSet = new HashSet<string>(notifiedIds.Split(',', StringSplitOptions.RemoveEmptyEntries));
-		List<DispatchJobRecord> newJobs = (await supabase.From<DispatchJobRecord>().Filter("engineer_user_id", Constants.Operator.Equals, userId).Filter("status", Constants.Operator.Equals, "Pending")
-			.Get()).Models.Where((DispatchJobRecord j) => !notifiedSet.Contains(j.Id.ToString())).ToList();
+		var newJobs = (await backend.GetJobsAsync(engineerUserId: userId, status: "Pending"))
+			.Where(j => !notifiedSet.Contains(j.Id.ToString())).ToList();
 		if (newJobs.Count > 0)
 		{
 			// Batch all new jobs into a single notification (fixed Id replaces any existing one)
@@ -85,7 +82,7 @@ public class JobNotificationService : IShinyStartupTask
 				Title = "New Job Assigned",
 				Message = message
 			});
-			foreach (DispatchJobRecord job in newJobs)
+			foreach (var job in newJobs)
 				notifiedSet.Add(job.Id.ToString());
 			Preferences.Default.Set("jobs.notified_ids", string.Join(",", notifiedSet));
 			ShowToast(newJobs.Count == 1 ? "A new job has been dispatched to you" : $"{newJobs.Count} new jobs dispatched to you");
@@ -94,8 +91,7 @@ public class JobNotificationService : IShinyStartupTask
 
 	private async Task CheckPunchStateChangesAsync()
 	{
-		var engineers = (await supabase.From<ProfileRecord>().Select("user_id,display_name,email,is_punched_in").Get()).Models
-			.Where(p => !p.IsAdmin).ToList();
+		var engineers = (await backend.ListProfilesAsync()).Where(p => !p.IsAdmin).ToList();
 		foreach (var profile in engineers)
 		{
 			bool currentState = profile.IsPunchedIn;
@@ -129,11 +125,11 @@ public class JobNotificationService : IShinyStartupTask
 		HashSet<string> declinedSet = new HashSet<string>(declinedIds.Split(',', StringSplitOptions.RemoveEmptyEntries));
 		string completedIds = Preferences.Default.Get("jobs.completed_notified_ids", string.Empty);
 		HashSet<string> completedSet = new HashSet<string>(completedIds.Split(',', StringSplitOptions.RemoveEmptyEntries));
-		ModeledResponse<DispatchJobRecord> response = await supabase.From<DispatchJobRecord>().Filter("admin_user_id", Constants.Operator.Equals, adminUserId).Get();
+		var jobs = await backend.GetJobsAsync(adminUserId: adminUserId);
 		bool anyAccepted = false;
 		bool anyDeclined = false;
 		bool anyCompleted = false;
-		foreach (DispatchJobRecord job in response.Models)
+		foreach (var job in jobs)
 		{
 			string idStr = job.Id.ToString();
 			if (job.Status == "In Progress" && !acceptedSet.Contains(idStr))

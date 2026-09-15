@@ -6,7 +6,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Maui.Storage;
 using Shiny;
 using Shiny.Locations;
-using Supabase;
 
 namespace GpsSync.Delegates;
 
@@ -14,15 +13,15 @@ public class MyGpsDelegate : GpsDelegate, IAndroidForegroundServiceDelegate
 {
 	private readonly ILogger logger;
 	private readonly MySqliteConnection conn;
-	private readonly Client supabase;
+	private readonly IBackendClient backend;
 	private readonly AppSettings settings;
 
-	public MyGpsDelegate(ILogger<MyGpsDelegate> logger, MySqliteConnection conn, Client supabase, AppSettings settings)
+	public MyGpsDelegate(ILogger<MyGpsDelegate> logger, MySqliteConnection conn, IBackendClient backend, AppSettings settings)
 		: base(logger)
 	{
 		this.logger = logger;
 		this.conn = conn;
-		this.supabase = supabase;
+		this.backend = backend;
 		this.settings = settings;
 		base.MinimumTime = TimeSpan.FromSeconds(5.0);   // was 10 s
 		base.MinimumDistance = Distance.FromMeters(0.0);
@@ -52,22 +51,15 @@ public class MyGpsDelegate : GpsDelegate, IAndroidForegroundServiceDelegate
 			settings.HasLastKnownPosition   = true;
 			Preferences.Default.Set("gps.last_reading_utc", now.ToString("O"));
 
-			if (settings.IsPunchedIn && supabase.Auth.CurrentSession != null)
+			await backend.EnsureSessionLoadedAsync();
+			if (settings.IsPunchedIn && backend.IsSignedIn)
 			{
-				string userId = supabase.Auth.CurrentUser?.Id ?? string.Empty;
-
 				// Push current ping
 				bool synced = false;
 				try
 				{
-					await supabase.From<GpsPingRecord>().Insert(new GpsPingRecord
-					{
-						UserId      = userId,
-						DisplayName = Preferences.Default.Get("user.display_name", string.Empty),
-						Latitude    = reading.Position.Latitude,
-						Longitude   = reading.Position.Longitude,
-						CreatedAt   = DateTimeOffset.UtcNow
-					});
+					await backend.PostPingAsync(reading.Position.Latitude, reading.Position.Longitude,
+						Preferences.Default.Get("user.display_name", string.Empty));
 					synced = true;
 					ping.Synced = true;
 					await conn.UpdateAsync(ping);
@@ -76,12 +68,12 @@ public class MyGpsDelegate : GpsDelegate, IAndroidForegroundServiceDelegate
 				}
 				catch
 				{
-					logger.LogWarning("Failed to sync GPS ping to Supabase; queued for offline sync.");
+					logger.LogWarning("Failed to sync GPS ping to backend; queued for offline sync.");
 				}
 
 				// If we just pushed successfully, also drain up to 10 queued unsynced pings
 				if (synced && settings.IsPunchedIn)
-					await SyncOfflineQueue(userId);
+					await SyncOfflineQueue();
 			}
 		}
 		catch (Exception ex)
@@ -91,7 +83,7 @@ public class MyGpsDelegate : GpsDelegate, IAndroidForegroundServiceDelegate
 	}
 
 	/// <summary>Retries unsynced local pings accumulated while offline.</summary>
-	private async Task SyncOfflineQueue(string userId)
+	private async Task SyncOfflineQueue()
 	{
 		try
 		{
@@ -102,14 +94,8 @@ public class MyGpsDelegate : GpsDelegate, IAndroidForegroundServiceDelegate
 			{
 				try
 				{
-					await supabase.From<GpsPingRecord>().Insert(new GpsPingRecord
-					{
-						UserId      = userId,
-						DisplayName = Preferences.Default.Get("user.display_name", string.Empty),
-						Latitude    = p.Latitude,
-						Longitude   = p.Longitude,
-						CreatedAt   = DateTimeOffset.UtcNow
-					});
+					await backend.PostPingAsync(p.Latitude, p.Longitude,
+						Preferences.Default.Get("user.display_name", string.Empty));
 					p.Synced = true;
 					await conn.UpdateAsync(p);
 				}

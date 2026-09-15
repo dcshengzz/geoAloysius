@@ -14,7 +14,6 @@ using Shiny;
 using Shiny.Jobs;
 using SkiaSharp.Views.Maui.Controls;
 using SkiaSharp.Views.Maui.Handlers;
-using Supabase;
 
 namespace GpsSync;
 
@@ -76,16 +75,12 @@ public static class MauiProgram
 		builder.Logging.AddDebug();
 #endif
 		IServiceCollection services = builder.Services;
-		Client implementationInstance = new Client(AppConfig.SupabaseUrl, AppConfig.SupabaseKey, new SupabaseOptions
-		{
-			AutoConnectRealtime = false
-		});
-		services.AddSingleton(implementationInstance);
+		// SQL Server backend client (auth, profiles, jobs, GPS). Owns its own HttpClient (BaseAddress from AppConfig).
+		services.AddSingleton<IBackendClient>(_ => new BackendClient(new System.Net.Http.HttpClient()));
 		services.AddSingleton<MySqliteConnection>();
 		ServiceCollectionServiceExtensions.AddSingleton<IBatteryOptimizationService, BatteryOptimizationService>(services);
 		services.AddShinyService<NetworkMonitorService>();
 		services.AddShinyService<AppSettings>();
-		services.AddShinyService<SupabaseTokenRefreshService>();
 		services.AddShinyService<GpsWatchdogService>();
 		services.AddShinyService<JobNotificationService>();
 		services.AddJob(typeof(MyJob), null, InternetAccess.Any, true);
@@ -107,7 +102,6 @@ public static class MauiProgram
 		services.RegisterForNavigation<JobsPage, JobsViewModel>();
 		services.RegisterForNavigation<AdminJobsPage, AdminJobsViewModel>();
 		services.RegisterForNavigation<SettingsPage, SettingsViewModel>();
-		services.RegisterForNavigation<ResetPasswordPage, ResetPasswordViewModel>();
 		services.RegisterForNavigation<ForgotPasswordPage, ForgotPasswordViewModel>();
 		services.RegisterForNavigation<RegisterPage, RegisterViewModel>();
 		services.RegisterForNavigation<EngineerStatusPage, EngineerStatusViewModel>();

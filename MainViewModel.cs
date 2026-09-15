@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -13,9 +13,6 @@ using ReactiveUI.Fody.Helpers;
 using Shiny;
 using Shiny.Locations;
 using Shiny.Notifications;
-using Supabase;
-using Supabase.Postgrest;
-using Supabase.Postgrest.Responses;
 
 namespace GpsSync;
 
@@ -27,7 +24,7 @@ public class MainViewModel : ViewModel
 
 	private readonly INotificationManager notifications;
 
-	private readonly Supabase.Client supabase;
+	private readonly IBackendClient backend;
 
 	private readonly MySqliteConnection data;
 
@@ -121,14 +118,14 @@ public class MainViewModel : ViewModel
 
 	public ICommand PunchOut { get; }
 
-	public MainViewModel(BaseServices services, AppSettings settings, IGpsManager gpsManager, INotificationManager notifications, Supabase.Client supabase, MySqliteConnection data, IBatteryOptimizationService batteryOptimization)
+	public MainViewModel(BaseServices services, AppSettings settings, IGpsManager gpsManager, INotificationManager notifications, IBackendClient backend, MySqliteConnection data, IBatteryOptimizationService batteryOptimization)
 		: base(services)
 	{
 		MainViewModel mainViewModel = this;
 		this.settings = settings;
 		this.gpsManager = gpsManager;
 		this.notifications = notifications;
-		this.supabase = supabase;
+		this.backend = backend;
 		this.data = data;
 		this.batteryOptimization = batteryOptimization;
 		IsPunchedIn = settings.IsPunchedIn;
@@ -209,14 +206,11 @@ public class MainViewModel : ViewModel
 			// Block punch-out if a job is still In Progress
 			try
 			{
-				string uid = supabase.Auth.CurrentUser?.Id;
+				string? uid = backend.CurrentUserId;
 				if (!string.IsNullOrEmpty(uid))
 				{
-					var inProgress = await supabase.From<DispatchJobRecord>()
-					    .Filter("engineer_user_id", Supabase.Postgrest.Constants.Operator.Equals, uid)
-					    .Filter("status", Supabase.Postgrest.Constants.Operator.Equals, "In Progress")
-					    .Get();
-					if (inProgress.Models.Count > 0)
+					var inProgress = await backend.GetJobsAsync(engineerUserId: uid, status: "In Progress");
+					if (inProgress.Count > 0)
 					{
 						await mainViewModel.Dialogs.Alert("You have a job in progress. Please complete it before punching out.", "Cannot Punch Out");
 						return;
@@ -245,9 +239,10 @@ public class MainViewModel : ViewModel
 		_displacementAlertShown = false;
 		try
 		{
-			if (supabase.Auth.CurrentUser != null)
+			string? userId = backend.CurrentUserId;
+			if (!string.IsNullOrEmpty(userId))
 			{
-				ProfileRecord profile = await supabase.From<ProfileRecord>().Filter("user_id", Constants.Operator.Equals, supabase.Auth.CurrentUser.Id).Single();
+				var profile = await backend.GetProfileAsync(userId);
 				settings.IsAdmin = profile?.IsAdmin ?? false;
 				Preferences.Default.Set("user.display_name", profile?.DisplayName ?? string.Empty);
 			}
@@ -300,7 +295,7 @@ public class MainViewModel : ViewModel
 		if (!string.IsNullOrEmpty(storedSyncTime) && DateTime.TryParse(storedSyncTime, null, System.Globalization.DateTimeStyles.RoundtripKind, out var restoredSyncTime))
 			LastSyncTime = restoredSyncTime;
 
-		// Restore HasLocation from persisted fix flag â€" survives app resume when GPS is throttled
+		// Restore HasLocation from persisted fix flag — survives app resume when GPS is throttled
 		if (IsPunchedIn && Preferences.Default.Get("gps.has_fix", false))
 			HasLocation = true;
 
@@ -328,8 +323,6 @@ public class MainViewModel : ViewModel
 			.Subscribe(_ => UpdateGpsSignalState());
 
 		// Subscribe to connectivity changes for instant status updates when network toggles
-		// Use InvokeOnMainThread (sync) when off main thread so the update is immediate, not queued.
-		// Also schedule a 300 ms follow-up to catch Android's second transitional connectivity event.
 		_connectivityHandler = (_, args) =>
 		{
 			void Run() => UpdateGpsSignalState(args.NetworkAccess);
@@ -494,25 +487,10 @@ public class MainViewModel : ViewModel
 	{
 		try
 		{
-			string userId = supabase.Auth.CurrentUser?.Id;
+			string? userId = backend.CurrentUserId;
 			if (!string.IsNullOrEmpty(userId))
 			{
-				var existing = await supabase.From<ProfileRecord>().Filter("user_id", Constants.Operator.Equals, userId).Single();
-				if (existing != null)
-				{
-					await supabase.From<ProfileRecord>().Filter("user_id", Constants.Operator.Equals, userId)
-						.Set((ProfileRecord x) => x.IsPunchedIn, isPunchedIn).Update();
-				}
-				else
-				{
-					await supabase.From<ProfileRecord>().Insert(new ProfileRecord
-					{
-						UserId = userId,
-						Email = supabase.Auth.CurrentUser?.Email,
-						IsAdmin = false,
-						IsPunchedIn = isPunchedIn
-					});
-				}
+				await backend.UpdateProfileAsync(userId, isPunchedIn: isPunchedIn);
 			}
 		}
 		catch
@@ -530,13 +508,10 @@ public class MainViewModel : ViewModel
 		if (_displacementAlertShown) return;
 		try
 		{
-			string? userId = supabase.Auth.CurrentUser?.Id;
+			string? userId = backend.CurrentUserId;
 			if (string.IsNullOrEmpty(userId)) return;
 
-			var profile = await supabase.From<ProfileRecord>()
-				.Filter("user_id", Constants.Operator.Equals, userId)
-				.Single();
-
+			var profile = await backend.GetProfileAsync(userId);
 			if (profile == null || profile.IsAdmin) return;
 
 			// No server token means the account has been fully signed out elsewhere — also kick
@@ -554,9 +529,7 @@ public class MainViewModel : ViewModel
 				}
 
 				// Clear all local auth state
-				try { await supabase.Auth.SignOut(); } catch { }
-				SecureStorage.Default.Remove("sb.access_token");
-				SecureStorage.Default.Remove("sb.refresh_token");
+				try { await backend.LogoutAsync(); } catch { }
 				SecureStorage.Default.Remove("device.session_token");
 				Preferences.Default.Remove("keep_logged_in");
 				Preferences.Default.Remove("jobs.notified_ids");
@@ -606,7 +579,7 @@ public class MainViewModel : ViewModel
 	{
 		try
 		{
-			string userId = supabase.Auth.CurrentUser?.Id;
+			string? userId = backend.CurrentUserId;
 			if (string.IsNullOrEmpty(userId))
 			{
 				return;
@@ -614,15 +587,14 @@ public class MainViewModel : ViewModel
 			if (IsAdmin)
 			{
 				DateTime.TryParse(Preferences.Default.Get("badges.jobboard_cleared_at", string.Empty), null, DateTimeStyles.RoundtripKind, out var clearedAt);
-				IEnumerable<DispatchJobRecord> active = (await supabase.From<DispatchJobRecord>().Get()).Models.Where((DispatchJobRecord j) => j.Status == "Pending" || j.Status == "In Progress");
-				JobBoardCount = ((clearedAt == default(DateTime)) ? active.Count() : active.Count((DispatchJobRecord j) => DateTime.SpecifyKind(j.CreatedAt, DateTimeKind.Utc) > clearedAt));
+				var active = (await backend.GetJobsAsync()).Where(j => j.Status == "Pending" || j.Status == "In Progress");
+				JobBoardCount = ((clearedAt == default(DateTime)) ? active.Count() : active.Count(j => DateTime.SpecifyKind(j.CreatedAt, DateTimeKind.Utc) > clearedAt));
 			}
 			else
 			{
 				DateTime.TryParse(Preferences.Default.Get("badges.myjobs_cleared_at", string.Empty), null, DateTimeStyles.RoundtripKind, out var clearedAt2);
-				ModeledResponse<DispatchJobRecord> resp = await supabase.From<DispatchJobRecord>().Filter("engineer_user_id", Constants.Operator.Equals, userId).Filter("status", Constants.Operator.Equals, "Pending")
-					.Get();
-				MyJobsCount = ((clearedAt2 == default(DateTime)) ? resp.Models.Count : resp.Models.Count((DispatchJobRecord j) => DateTime.SpecifyKind(j.CreatedAt, DateTimeKind.Utc) > clearedAt2));
+				var mine = await backend.GetJobsAsync(engineerUserId: userId, status: "Pending");
+				MyJobsCount = ((clearedAt2 == default(DateTime)) ? mine.Count : mine.Count(j => DateTime.SpecifyKind(j.CreatedAt, DateTimeKind.Utc) > clearedAt2));
 			}
 		}
 		catch

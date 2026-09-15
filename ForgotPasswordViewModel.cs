@@ -6,14 +6,12 @@ using Prism.Navigation;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
 using Shiny;
-using Supabase;
-using Supabase.Gotrue;
 
 namespace GpsSync;
 
 public class ForgotPasswordViewModel : ViewModel
 {
-	private readonly Supabase.Client supabase;
+	private readonly IBackendClient backend;
 
 	[Reactive]
 	public string Email { get; set; } = string.Empty;
@@ -45,10 +43,10 @@ public class ForgotPasswordViewModel : ViewModel
 
 	public ICommand NavigateBack => ReactiveCommand.CreateFromTask(() => base.Navigation.GoBackAsync());
 
-	public ForgotPasswordViewModel(BaseServices services, Supabase.Client supabase)
+	public ForgotPasswordViewModel(BaseServices services, IBackendClient backend)
 		: base(services)
 	{
-		this.supabase = supabase;
+		this.backend = backend;
 		this.WhenAnyValue((ForgotPasswordViewModel x) => x.ErrorMessage).Subscribe(delegate(string msg)
 		{
 			HasError = !string.IsNullOrEmpty(msg);
@@ -64,7 +62,7 @@ public class ForgotPasswordViewModel : ViewModel
 			base.IsBusy = true;
 			try
 			{
-				await this.supabase.Auth.ResetPasswordForEmail(new ResetPasswordForEmailOptions(Email.Trim()));
+				await this.backend.ForgotPasswordAsync(Email.Trim());
 				CodeSent = true;
 				SuccessMessage = "Code sent! Check your email for the 6-digit code.";
 			}
@@ -87,40 +85,31 @@ public class ForgotPasswordViewModel : ViewModel
 			{
 				ErrorMessage = "Password must be at least 6 characters.";
 			}
+			else if (NewPassword != ConfirmPassword)
+			{
+				ErrorMessage = "Passwords do not match.";
+			}
 			else
 			{
-				if (!(NewPassword != ConfirmPassword))
+				ErrorMessage = string.Empty;
+				base.IsBusy = true;
+				try
 				{
-					ErrorMessage = string.Empty;
-					base.IsBusy = true;
-					try
-					{
-						if ((await this.supabase.Auth.VerifyOTP(Email.Trim(), Code.Trim(), Constants.EmailOtpType.Recovery))?.User == null)
-						{
-							ErrorMessage = "Invalid or expired code. Please request a new one.";
-						}
-						else
-						{
-							await this.supabase.Auth.Update(new UserAttributes
-							{
-								Password = NewPassword
-							});
-							await base.Dialogs.Alert("Password updated successfully! Please sign in with your new password.", "Done");
-							await base.Navigation.NavigateAsync("/LoginPage");
-						}
-						return;
-					}
-					catch
-					{
-						ErrorMessage = "Invalid or expired code. Please request a new one.";
-						return;
-					}
-					finally
-					{
-						base.IsBusy = false;
-					}
+					await this.backend.ResetPasswordAsync(Email.Trim(), Code.Trim(), NewPassword);
+					await base.Dialogs.Alert("Password updated successfully! Please sign in with your new password.", "Done");
+					await base.Navigation.NavigateAsync("/LoginPage");
 				}
-				ErrorMessage = "Passwords do not match.";
+				catch (Exception ex)
+				{
+					string text = (ex.Message ?? string.Empty).ToLowerInvariant();
+					ErrorMessage = text.Contains("invalid") || text.Contains("expired")
+						? "Invalid or expired code. Please request a new one."
+						: (string.IsNullOrWhiteSpace(ex.Message) ? "Failed to reset password. Please try again." : ex.Message);
+				}
+				finally
+				{
+					base.IsBusy = false;
+				}
 			}
 		}, (IObservable<bool>?)null, (IScheduler?)null);
 	}

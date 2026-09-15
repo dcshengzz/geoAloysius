@@ -4,8 +4,6 @@ using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.Storage;
 using Prism.Navigation;
 using Shiny;
-using Supabase;
-using Supabase.Gotrue;
 
 namespace GpsSync;
 
@@ -13,13 +11,13 @@ public class SplashViewModel : ViewModel
 {
 	private static bool _splashShown = false;
 
-	private readonly Supabase.Client supabase;
+	private readonly IBackendClient backend;
 	private readonly MySqliteConnection data;
 
-	public SplashViewModel(BaseServices services, Supabase.Client supabase, MySqliteConnection data)
+	public SplashViewModel(BaseServices services, IBackendClient backend, MySqliteConnection data)
 		: base(services)
 	{
-		this.supabase = supabase;
+		this.backend = backend;
 		this.data = data;
 	}
 
@@ -32,14 +30,13 @@ public class SplashViewModel : ViewModel
 		if (!string.IsNullOrEmpty(storedVersion) && storedVersion != currentVersion)
 		{
 			Preferences.Default.Remove("keep_logged_in");
-			SecureStorage.Default.Remove("sb.access_token");
-			SecureStorage.Default.Remove("sb.refresh_token");
+			SecureStorage.Default.Remove("api.access_token");
+			SecureStorage.Default.Remove("api.refresh_token");
+			SecureStorage.Default.Remove("api.user_id");
 			SecureStorage.Default.Remove("device.session_token");
 		}
 		Preferences.Default.Set("app.version", currentVersion);
 		// Show the 1.5s splash only on the first run of this process (cold start / after app is closed).
-		// _splashShown is a static field that resets to false when the process dies, so it reliably
-		// distinguishes a fresh launch from returning to the app from the background.
 		if (!_splashShown)
 		{
 			_splashShown = true;
@@ -49,102 +46,46 @@ public class SplashViewModel : ViewModel
 		{
 			await data.InitializeAsync();
 		}
-		string pendingUrl = DeepLinkService.PendingUrl;
-		if (!string.IsNullOrEmpty(pendingUrl))
-		{
+
+		// Password reset is now an in-app 6-digit code flow (ForgotPasswordPage) — no email deep
+		// link needed. Clear any stray pending deep-link URL so it does not linger.
+		if (!string.IsNullOrEmpty(DeepLinkService.PendingUrl))
 			DeepLinkService.PendingUrl = null;
-			var (accessToken, refreshToken, type) = DeepLinkService.ParseUrl(pendingUrl);
-			if (type == "recovery" && !string.IsNullOrEmpty(accessToken))
+
+		try
+		{
+			AuthUser? user = await backend.RestoreSessionAsync();
+			if (user != null)
 			{
-				await base.Navigation.NavigateAsync("/ResetPasswordPage?token=" + Uri.EscapeDataString(accessToken));
-				return;
-			}
-			if (type == "signup" || type == "email_change")
-			{
-				// Email verified - auto-login if tokens are valid (first click only)
-				bool verificationSucceeded = false;
-				if (!string.IsNullOrEmpty(accessToken) && !string.IsNullOrEmpty(refreshToken))
+				if (!await PassesDeviceCheck(user))
 				{
-					try
-					{
-						await supabase.Auth.SetSession(accessToken, refreshToken);
-						if (supabase.Auth.CurrentSession?.User != null)
-						{
-							verificationSucceeded = true;
-							if (!await PassesDeviceCheck())
-							{
-								await ForceLogout();
-								await base.Navigation.NavigateAsync("/LoginPage?displaced=true");
-								return;
-							}
-							await base.Navigation.NavigateAsync("/NavigationPage/MainPage");
-							return;
-						}
-						verificationSucceeded = true;
-					}
-					catch { }
+					await ForceLogout();
+					await base.Navigation.NavigateAsync("/LoginPage?displaced=true");
+					return;
 				}
-				if (verificationSucceeded)
-					await base.Navigation.NavigateAsync("/LoginPage?verified=true");
-				else
-					await base.Navigation.NavigateAsync("/LoginPage");
+				await base.Navigation.NavigateAsync("/NavigationPage/MainPage");
 				return;
 			}
 		}
-		try
+		catch
 		{
-				string access = await SecureStorage.Default.GetAsync("sb.access_token");
-				string refresh = await SecureStorage.Default.GetAsync("sb.refresh_token");
-				if (!string.IsNullOrEmpty(access) && !string.IsNullOrEmpty(refresh))
-				{
-					await supabase.Auth.SetSession(access, refresh);
-					if (supabase.Auth.CurrentSession?.User != null)
-					{
-						if (!await PassesDeviceCheck())
-						{
-							await ForceLogout();
-							await base.Navigation.NavigateAsync("/LoginPage?displaced=true");
-							return;
-						}
-						Session s = supabase.Auth.CurrentSession;
-						if (s.AccessToken != null)
-						{
-							await SecureStorage.Default.SetAsync("sb.access_token", s.AccessToken);
-						}
-						if (s.RefreshToken != null)
-						{
-							await SecureStorage.Default.SetAsync("sb.refresh_token", s.RefreshToken);
-						}
-						await base.Navigation.NavigateAsync("/NavigationPage/MainPage");
-						return;
-					}
-				}
-			}
-			catch
-			{
-				SecureStorage.Default.Remove("sb.access_token");
-				SecureStorage.Default.Remove("sb.refresh_token");
-			}
+			await ForceLogout();
+		}
 		await base.Navigation.NavigateAsync("/LoginPage");
 	}
 
 	/// <summary>
 	/// Returns true if the current session is allowed to proceed on this device.
 	/// Admins always pass. Non-admins are blocked if the server's active device token
-	/// does not match the token stored locally (meaning another device is active).
-	/// Returns false on any error so we fail safe.
+	/// does not match the token stored locally. Returns false on any error (fail safe).
 	/// </summary>
-	private async Task<bool> PassesDeviceCheck()
+	private async Task<bool> PassesDeviceCheck(AuthUser user)
 	{
 		try
 		{
-			string? userId = supabase.Auth.CurrentUser?.Id;
-			if (string.IsNullOrEmpty(userId)) return false;
+			if (user.IsAdmin) return true;
 
-			var profile = await supabase.From<ProfileRecord>()
-				.Filter("user_id", Supabase.Postgrest.Constants.Operator.Equals, userId)
-				.Single();
-
+			var profile = await backend.GetProfileAsync(user.Id);
 			if (profile == null || profile.IsAdmin) return true;
 
 			// No active token on server means no other device is registered — allow
@@ -162,9 +103,7 @@ public class SplashViewModel : ViewModel
 
 	private async Task ForceLogout()
 	{
-		try { await supabase.Auth.SignOut(); } catch { }
-		SecureStorage.Default.Remove("sb.access_token");
-		SecureStorage.Default.Remove("sb.refresh_token");
+		try { await backend.LogoutAsync(); } catch { }
 		SecureStorage.Default.Remove("device.session_token");
 		Preferences.Default.Remove("keep_logged_in");
 	}

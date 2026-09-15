@@ -8,14 +8,12 @@ using Microsoft.Maui.Storage;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
 using Shiny;
-using Supabase;
-using Supabase.Postgrest;
 
 namespace GpsSync;
 
 public class JobsViewModel : ViewModel
 {
-	private readonly Supabase.Client supabase;
+	private readonly IBackendClient backend;
 	private readonly AppSettings settings;
 
 	[Reactive]
@@ -24,18 +22,19 @@ public class JobsViewModel : ViewModel
 	public ICommand Load { get; }
 	public ICommand ClearCompleted { get; }
 
-	public JobsViewModel(BaseServices services, Supabase.Client supabase, AppSettings settings)
+	public JobsViewModel(BaseServices services, IBackendClient backend, AppSettings settings)
 		: base(services)
 	{
-		this.supabase = supabase;
+		this.backend = backend;
 		this.settings = settings;
 		Load = ReactiveCommand.CreateFromTask((Func<Task>)async delegate
 		{
-			string userId = this.supabase.Auth.CurrentUser?.Id;
+			string? userId = this.backend.CurrentUserId;
 			if (userId != null)
 			{
-				Jobs = (await this.supabase.From<DispatchJobRecord>().Filter("engineer_user_id", Constants.Operator.Equals, userId).Order("created_at", Constants.Ordering.Descending)
-					.Get()).Models.OrderByDescending(r => r.CreatedAt).Select((DispatchJobRecord r) => new JobItem(r, this.supabase, this.settings)).ToList();
+				var jobs = await this.backend.GetJobsAsync(engineerUserId: userId);
+				Jobs = jobs.OrderByDescending(r => r.CreatedAt)
+					.Select(r => new JobItem(r, this.backend, this.settings)).ToList();
 			}
 		}, (IObservable<bool>?)null, (IScheduler?)null);
 		BindBusyCommand(Load);
