@@ -1,0 +1,60 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<TargetFrameworks>net8.0-android</TargetFrameworks>
+		<OutputType>Exe</OutputType>
+		<RootNamespace>GpsSync</RootNamespace>
+		<UseMaui>true</UseMaui>
+		<SingleProject>true</SingleProject>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+
+		<ApplicationTitle>HitachiDispatch</ApplicationTitle>
+		<ApplicationId>org.shiny.locationsync</ApplicationId>
+		<ApplicationIdGuid>C89292D7-1390-4A1D-8B14-AE84B120B909</ApplicationIdGuid>
+
+		<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+		<ApplicationVersion>1</ApplicationVersion>
+		
+		<ShinyVersion>3.2.0-beta-0022</ShinyVersion>
+		<UseInterpreter Condition="'$(Configuration)' == 'Debug'">False</UseInterpreter>
+		<EmbedAssembliesIntoApk Condition="'$(Configuration)' == 'Debug'">True</EmbedAssembliesIntoApk>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<Compile Remove="AppConfig.template.cs" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#512BD4" />
+		<MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#512BD4" BaseSize="128,128" />
+
+		<MauiImage Include="Resources\Images\*" />
+		<MauiFont Include="Resources\Fonts\*" />
+		<MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="sqlite-net-pcl" Version="1.9.141-beta" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="8.0.0" Condition="'$(Configuration)' == 'Debug'" />
+		<PackageReference Include="CommunityToolkit.Maui" Version="7.0.0" />
+		<PackageReference Include="Prism.DryIoc.Maui" Version="9.0.271-pre" />
+		<PackageReference Include="ReactiveUI.Fody" Version="19.5.1" />
+		<PackageReference Include="Shiny.Framework" Version="4.0.0-beta-0013" />
+		<PackageReference Include="Shiny.Logging.Sqlite" Version="$(ShinyVersion)" />
+		<PackageReference Include="Shiny.Locations" Version="$(ShinyVersion)" />
+		<PackageReference Include="Shiny.Notifications" Version="$(ShinyVersion)" />
+		<PackageReference Include="Shiny.Jobs" Version="$(ShinyVersion)" />
+		<PackageReference Include="Microsoft.Maui.Controls" Version="8.0.40" />
+		<PackageReference Include="Microsoft.Maui.Controls.Compatibility" Version="8.0.40" />
+		<PackageReference Include="Mapsui.Maui" Version="4.1.7" />
+		<PackageReference Include="Supabase" Version="1.1.1" />
+	</ItemGroup>
+
+	<!-- Rename signed APK to HitachiDispatch after build -->
+	<Target Name="RenameApk" AfterTargets="SignAndroidPackage" Condition="$(TargetFramework.Contains('android'))">
+		<Copy SourceFiles="$(OutputPath)$(ApplicationId)-Signed.apk"
+		      DestinationFiles="$(OutputPath)HitachiDispatch.apk"
+		      Condition="Exists('$(OutputPath)$(ApplicationId)-Signed.apk')" />
+	</Target>
+
+</Project>

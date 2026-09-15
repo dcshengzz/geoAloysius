@@ -1,0 +1,346 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:GpsSync"
+             xmlns:controls="clr-namespace:GpsSync.Controls"
+             x:DataType="local:MainViewModel"
+             x:Class="GpsSync.MainPage"
+             Title="HitachiDispatch">
+
+    <ContentPage.Resources>
+        <local:PositiveIntToBoolConverter x:Key="PositiveIntToBool" />
+    </ContentPage.Resources>
+
+
+    <Grid RowDefinitions="Auto,*">
+        <controls:ConnectivityView Grid.Row="0" />
+        <RefreshView Grid.Row="1"
+                     Command="{Binding Refresh}"
+                     IsRefreshing="{Binding IsBusy}">
+        <ScrollView>
+        <VerticalStackLayout Spacing="0" Padding="0,0,0,32">
+
+            <!-- Header banner -->
+            <Grid BackgroundColor="{StaticResource Primary}" Padding="24,20,24,28"
+                  ColumnDefinitions="*,Auto">
+                <VerticalStackLayout Grid.Column="0" Spacing="4">
+                    <Label Text="HitachiDispatch"
+                           FontSize="26"
+                           FontAttributes="Bold"
+                           TextColor="White" />
+                    <Label Text="Field Operations Platform"
+                           FontSize="12"
+                           TextColor="#94A3B8" />
+                </VerticalStackLayout>
+                <!-- Settings button — embedded in header so it always renders -->
+                <Image Grid.Column="1"
+                       Source="settings.png"
+                       WidthRequest="26"
+                       HeightRequest="26"
+                       VerticalOptions="Center"
+                       Margin="8,0,0,0">
+                    <Image.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding Navigate}" CommandParameter="SettingsPage" />
+                    </Image.GestureRecognizers>
+                </Image>
+            </Grid>
+
+            <VerticalStackLayout Spacing="12" Padding="16,16,16,0">
+
+                <!-- Tracking status card (engineers only) -->
+                <Frame IsVisible="{Binding IsAdmin, Converter={StaticResource InvertedBoolConverter}}"
+                       Padding="18">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <VerticalStackLayout Spacing="4">
+                            <Label Text="TRACKING STATUS"
+                                   FontSize="11" FontAttributes="Bold"
+                                   TextColor="{AppThemeBinding Light={StaticResource SubtextLight}, Dark={StaticResource SubtextDark}}" />
+
+                            <!-- Stopped -->
+                            <Label Text="○ Not Tracking"
+                                   FontSize="18" FontAttributes="Bold"
+                                   TextColor="{AppThemeBinding Light={StaticResource SubtextLight}, Dark={StaticResource SubtextDark}}"
+                                   IsVisible="{Binding IsPunchedIn, Converter={StaticResource InvertedBoolConverter}}" />
+
+                            <!-- Active -->
+                            <Label Text="● GPS Active"
+                                   FontSize="18" FontAttributes="Bold"
+                                   TextColor="{StaticResource Success}"
+                                   IsVisible="{Binding GpsSignalActive}" />
+
+                            <!-- Acquiring fix (just punched in, within grace period) -->
+                            <Label Text="Acquiring GPS Fix..."
+                                   FontSize="18" FontAttributes="Bold"
+                                   TextColor="{StaticResource Accent}"
+                                   IsVisible="{Binding IsAcquiringFix}" />
+
+                            <!-- Signal lost (punched in, no GPS and no recent server sync) -->
+                            <Label Text="⚠ Signal Lost"
+                                   FontSize="18" FontAttributes="Bold"
+                                   TextColor="#f39c12"
+                                   IsVisible="{Binding ShowSignalLost}" />
+
+                            <Label Text="{Binding ElapsedTime, StringFormat='On shift: {0}'}"
+                                   FontSize="13"
+                                   TextColor="{StaticResource Success}"
+                                   IsVisible="{Binding IsPunchedIn}" />
+                        </VerticalStackLayout>
+
+                        <!-- Status icon -->
+                        <Frame Grid.Column="1"
+                               WidthRequest="48" HeightRequest="48"
+                               CornerRadius="24" Padding="0"
+                               BorderColor="Transparent"
+                               VerticalOptions="Center"
+                               IsVisible="{Binding IsPunchedIn}">
+                            <Frame.Triggers>
+                                <DataTrigger TargetType="Frame" Binding="{Binding GpsSignalState}" Value="active">
+                                    <Setter Property="BackgroundColor" Value="{StaticResource Success}" />
+                                </DataTrigger>
+                                <DataTrigger TargetType="Frame" Binding="{Binding GpsSignalState}" Value="lost">
+                                    <Setter Property="BackgroundColor" Value="#f39c12" />
+                                </DataTrigger>
+                                <DataTrigger TargetType="Frame" Binding="{Binding GpsSignalState}" Value="acquiring">
+                                    <Setter Property="BackgroundColor" Value="{StaticResource Accent}" />
+                                </DataTrigger>
+                            </Frame.Triggers>
+                            <Label FontSize="22" TextColor="White"
+                                   HorizontalTextAlignment="Center" VerticalTextAlignment="Center">
+                                <Label.Triggers>
+                                    <DataTrigger TargetType="Label" Binding="{Binding GpsSignalState}" Value="active">
+                                        <Setter Property="Text" Value="✓" />
+                                    </DataTrigger>
+                                    <DataTrigger TargetType="Label" Binding="{Binding GpsSignalState}" Value="lost">
+                                        <Setter Property="Text" Value="!" />
+                                    </DataTrigger>
+                                    <DataTrigger TargetType="Label" Binding="{Binding GpsSignalState}" Value="acquiring">
+                                        <Setter Property="Text" Value="…" />
+                                    </DataTrigger>
+                                </Label.Triggers>
+                            </Label>
+                        </Frame>
+                    </Grid>
+                </Frame>
+
+                <!-- GPS Coordinates card (engineers only) -->
+                <Frame IsVisible="{Binding IsAdmin, Converter={StaticResource InvertedBoolConverter}}"
+                       Padding="18">
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="CURRENT LOCATION"
+                               FontSize="11" FontAttributes="Bold"
+                               TextColor="{AppThemeBinding Light={StaticResource SubtextLight}, Dark={StaticResource SubtextDark}}" />
+
+                        <!-- No location yet -->
+                        <Label FontSize="14"
+                               TextColor="{AppThemeBinding Light={StaticResource SubtextLight}, Dark={StaticResource SubtextDark}}"
+                               IsVisible="{Binding HasLocation, Converter={StaticResource InvertedBoolConverter}}">
+                            <Label.Triggers>
+                                <DataTrigger TargetType="Label" Binding="{Binding IsPunchedIn}" Value="True">
+                                    <Setter Property="Text" Value="Acquiring GPS fix…" />
+                                </DataTrigger>
+                                <DataTrigger TargetType="Label" Binding="{Binding IsPunchedIn}" Value="False">
+                                    <Setter Property="Text" Value="Punch in to start tracking" />
+                                </DataTrigger>
+                            </Label.Triggers>
+                        </Label>
+
+                        <Label Text="{Binding CurrentLatitude, StringFormat='Lat: {0:F6}'}"
+                               FontSize="14"
+                               IsVisible="{Binding HasLocation}" />
+                        <Label Text="{Binding CurrentLongitude, StringFormat='Lon: {0:F6}'}"
+                               FontSize="14"
+                               IsVisible="{Binding HasLocation}" />
+
+                        <!-- Last sync time — green when fresh, orange when stale -->
+                        <Label Text="{Binding LastPingDisplay}" FontSize="12" IsVisible="{Binding HasLocation}">
+                            <Label.Triggers>
+                                <DataTrigger TargetType="Label" Binding="{Binding GpsSignalActive}" Value="True">
+                                    <Setter Property="TextColor" Value="{StaticResource Success}" />
+                                </DataTrigger>
+                                <DataTrigger TargetType="Label" Binding="{Binding GpsSignalActive}" Value="False">
+                                    <Setter Property="TextColor" Value="#f39c12" />
+                                </DataTrigger>
+                            </Label.Triggers>
+                        </Label>
+
+                        
+                        <!-- No internet warning -->
+                        <Label Text="⚠ No internet — location not syncing to server"
+                               FontSize="12"
+                               TextColor="#f39c12"
+                               IsVisible="{Binding WarnNoInternet}" />
+
+                        <!-- Battery saver warning -->
+                        <Label Text="⚠ Battery saver on — may interrupt background GPS"
+                               FontSize="12"
+                               TextColor="#f39c12"
+                               IsVisible="{Binding WarnBatterySaver}" />
+
+                    </VerticalStackLayout>
+                </Frame>
+
+                <!-- Punch In / Out (engineers only) -->
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="10"
+                      IsVisible="{Binding IsAdmin, Converter={StaticResource InvertedBoolConverter}}">
+                    <Button Grid.Column="0"
+                            Text="Punch In"
+                            BackgroundColor="{StaticResource Success}"
+                            TextColor="White"
+                            CornerRadius="14"
+                            HeightRequest="52"
+                            FontSize="15"
+                            FontAttributes="Bold"
+                            Command="{Binding PunchIn}" />
+                    <Button Grid.Column="1"
+                            Text="Punch Out"
+                            BackgroundColor="{StaticResource Danger}"
+                            TextColor="White"
+                            CornerRadius="14"
+                            HeightRequest="52"
+                            FontSize="15"
+                            FontAttributes="Bold"
+                            Command="{Binding PunchOut}" />
+                </Grid>
+
+                <!-- Section divider (engineers only) -->
+                <Label Text="QUICK ACTIONS"
+                       FontSize="11"
+                       FontAttributes="Bold"
+                       TextColor="{AppThemeBinding Light={StaticResource SubtextLight}, Dark={StaticResource SubtextDark}}"
+                       IsVisible="{Binding IsAdmin, Converter={StaticResource InvertedBoolConverter}}"
+                       Margin="4,8,0,0" />
+
+                <!-- Live Map (engineers only — admin gets it in their dashboard below) -->
+                <Button Text="🗺  Live Map"
+                        BackgroundColor="{StaticResource Accent}"
+                        TextColor="White"
+                        CornerRadius="14"
+                        HeightRequest="52"
+                        FontSize="15"
+                        Padding="20,0"
+                        IsVisible="{Binding IsAdmin, Converter={StaticResource InvertedBoolConverter}}"
+                        Command="{Binding Navigate}"
+                        CommandParameter="MapPage" />
+
+                <!-- My Jobs (engineers only) -->
+                <Grid IsVisible="{Binding IsAdmin, Converter={StaticResource InvertedBoolConverter}}">
+                    <Button Text="💼  My Jobs"
+                            BackgroundColor="{StaticResource Primary}"
+                            TextColor="White"
+                            CornerRadius="14"
+                            HeightRequest="52"
+                            FontSize="15"
+                            Padding="20,0"
+                            Command="{Binding Navigate}"
+                            CommandParameter="JobsPage" />
+                    <Frame BackgroundColor="#E53935"
+                           CornerRadius="11"
+                           Padding="5,2"
+                           MinimumWidthRequest="22"
+                           HeightRequest="22"
+                           HorizontalOptions="End"
+                           VerticalOptions="Start"
+                           Margin="0,-8,-4,0"
+                           HasShadow="False"
+                           BorderColor="White"
+                           IsVisible="{Binding MyJobsCount, Converter={StaticResource PositiveIntToBool}}">
+                        <Label Text="{Binding MyJobsCount}"
+                               TextColor="White"
+                               FontSize="11"
+                               FontAttributes="Bold"
+                               HorizontalTextAlignment="Center"
+                               VerticalTextAlignment="Center" />
+                    </Frame>
+                </Grid>
+
+
+                <!-- Admin Dashboard -->
+                <VerticalStackLayout IsVisible="{Binding IsAdmin}" Spacing="10" Margin="0,8,0,0">
+
+                    <Label Text="DASHBOARD"
+                           FontSize="11" FontAttributes="Bold"
+                           TextColor="{AppThemeBinding Light={StaticResource SubtextLight}, Dark={StaticResource SubtextDark}}"
+                           Margin="4,0,0,0" />
+
+                    <!-- Live Map tile (full width) -->
+                    <Frame Padding="0" CornerRadius="14" HasShadow="False"
+                           BackgroundColor="{StaticResource Accent}" BorderColor="Transparent">
+                        <Frame.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding Navigate}" CommandParameter="MapPage" />
+                        </Frame.GestureRecognizers>
+                        <Grid ColumnDefinitions="Auto,*" Padding="18,14">
+                            <Label Grid.Column="0" Text="🗺" FontSize="28"
+                                   VerticalOptions="Center" Margin="0,0,14,0" />
+                            <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                <Label Text="Live Map" FontSize="16" FontAttributes="Bold" TextColor="White" />
+                                <Label Text="Real-time engineer positions" FontSize="12" TextColor="#CCEEFF" />
+                            </VerticalStackLayout>
+                        </Grid>
+                    </Frame>
+
+                    <!-- Engineer Status + Job Board tiles (2-column) -->
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+
+                        <!-- Engineer Status tile -->
+                        <Frame Grid.Column="0" Padding="0" CornerRadius="14" HasShadow="False"
+                               BackgroundColor="#6A1B9A" BorderColor="Transparent">
+                            <Frame.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding Navigate}" CommandParameter="EngineerStatusPage" />
+                            </Frame.GestureRecognizers>
+                            <VerticalStackLayout Padding="16,16" Spacing="6">
+                                <Label Text="👷" FontSize="26" />
+                                <Label Text="Engineers" FontSize="14" FontAttributes="Bold" TextColor="White" />
+                                <Label Text="Status &amp; tracking" FontSize="11" TextColor="#E1BEE7" />
+                            </VerticalStackLayout>
+                        </Frame>
+
+                        <!-- Job Board tile with badge -->
+                        <Grid Grid.Column="1">
+                            <Frame Padding="0" CornerRadius="14" HasShadow="False"
+                                   BackgroundColor="#E65100" BorderColor="Transparent">
+                                <Frame.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding Navigate}" CommandParameter="AdminJobsPage" />
+                                </Frame.GestureRecognizers>
+                                <VerticalStackLayout Padding="16,16" Spacing="6">
+                                    <Label Text="📋" FontSize="26" />
+                                    <Label Text="Job Board" FontSize="14" FontAttributes="Bold" TextColor="White" />
+                                    <Label Text="Active dispatches" FontSize="11" TextColor="#FFE0B2" />
+                                </VerticalStackLayout>
+                            </Frame>
+                            <Frame BackgroundColor="#E53935"
+                                   CornerRadius="11" Padding="5,2"
+                                   MinimumWidthRequest="22" HeightRequest="22"
+                                   HorizontalOptions="End" VerticalOptions="Start"
+                                   Margin="0,-6,-4,0" HasShadow="False" BorderColor="White"
+                                   IsVisible="{Binding JobBoardCount, Converter={StaticResource PositiveIntToBool}}">
+                                <Label Text="{Binding JobBoardCount}"
+                                       TextColor="White" FontSize="11" FontAttributes="Bold"
+                                       HorizontalTextAlignment="Center" VerticalTextAlignment="Center" />
+                            </Frame>
+                        </Grid>
+
+                    </Grid>
+                </VerticalStackLayout>
+
+                <!-- Last Background Sync -->
+                <Frame Padding="18"
+                       IsVisible="{Binding LastJobRun, Converter={x:Static local:StringNotEmptyConverter.Instance}}">
+                    <Grid ColumnDefinitions="Auto,*">
+                        <Label Text="🔄" FontSize="22" VerticalOptions="Center" Margin="0,0,12,0" />
+                        <VerticalStackLayout Grid.Column="1" Spacing="2">
+                            <Label Text="LAST BACKGROUND SYNC"
+                                   FontSize="11"
+                                   FontAttributes="Bold"
+                                   TextColor="{AppThemeBinding Light={StaticResource SubtextLight}, Dark={StaticResource SubtextDark}}"
+                                   />
+                            <Label Text="{Binding LastJobRun}" FontSize="14" />
+                        </VerticalStackLayout>
+                    </Grid>
+                </Frame>
+
+            </VerticalStackLayout>
+        </VerticalStackLayout>
+        </ScrollView>
+        </RefreshView>
+    </Grid>
+</ContentPage>

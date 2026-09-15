@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:GpsSync"
+             x:DataType="local:JobsViewModel"
+             x:Class="GpsSync.JobsPage"
+             Title="My Jobs">
+
+    <Grid RowDefinitions="Auto,*">
+        <Button Grid.Row="0"
+                Text="Clear Completed"
+                Command="{Binding ClearCompleted}"
+                BackgroundColor="Transparent"
+                TextColor="{AppThemeBinding Light={StaticResource SubtextLight}, Dark={StaticResource SubtextDark}}"
+                FontSize="13"
+                HorizontalOptions="End"
+                Margin="16,6,16,0" />
+        <RefreshView Grid.Row="1" Command="{Binding Load}" IsRefreshing="{Binding IsBusy}">
+        <CollectionView ItemsSource="{Binding Jobs}">
+
+            <CollectionView.EmptyView>
+                <VerticalStackLayout VerticalOptions="Center" HorizontalOptions="Center"
+                                     Spacing="8" Margin="32">
+                    <Label Text="💼" FontSize="48" HorizontalTextAlignment="Center" />
+                    <Label Text="No jobs assigned yet"
+                           FontSize="16" FontAttributes="Bold"
+                           HorizontalTextAlignment="Center" />
+                    <Label Text="Jobs dispatched to you will appear here."
+                           FontSize="13"
+                           TextColor="{AppThemeBinding Light={StaticResource SubtextLight}, Dark={StaticResource SubtextDark}}"
+                           HorizontalTextAlignment="Center" />
+                </VerticalStackLayout>
+            </CollectionView.EmptyView>
+
+            <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="local:JobItem">
+                    <Frame Margin="16,6" Padding="18">
+                        <VerticalStackLayout Spacing="10">
+
+                            <!-- Title + status badge -->
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                <Label Text="{Binding Title}"
+                                       FontSize="16" FontAttributes="Bold"
+                                       VerticalOptions="Center"
+                                       LineBreakMode="TailTruncation" />
+                                <Frame Grid.Column="1"
+                                       Padding="10,5" CornerRadius="20"
+                                       HasShadow="False" BorderColor="Transparent"
+                                       VerticalOptions="Center">
+                                    <Frame.Triggers>
+                                        <DataTrigger TargetType="Frame" Binding="{Binding Status}" Value="Pending">
+                                            <Setter Property="BackgroundColor" Value="#FEF3C7" />
+                                        </DataTrigger>
+                                        <DataTrigger TargetType="Frame" Binding="{Binding Status}" Value="In Progress">
+                                            <Setter Property="BackgroundColor" Value="#DBEAFE" />
+                                        </DataTrigger>
+                                        <DataTrigger TargetType="Frame" Binding="{Binding Status}" Value="Completed">
+                                            <Setter Property="BackgroundColor" Value="#DCFCE7" />
+                                        </DataTrigger>
+                                    </Frame.Triggers>
+                                    <Label Text="{Binding Status}"
+                                           FontSize="12" FontAttributes="Bold">
+                                        <Label.Triggers>
+                                            <DataTrigger TargetType="Label" Binding="{Binding Status}" Value="Pending">
+                                                <Setter Property="TextColor" Value="#92400E" />
+                                            </DataTrigger>
+                                            <DataTrigger TargetType="Label" Binding="{Binding Status}" Value="In Progress">
+                                                <Setter Property="TextColor" Value="#1E40AF" />
+                                            </DataTrigger>
+                                            <DataTrigger TargetType="Label" Binding="{Binding Status}" Value="Completed">
+                                                <Setter Property="TextColor" Value="#166534" />
+                                            </DataTrigger>
+                                        </Label.Triggers>
+                                    </Label>
+                                </Frame>
+                            </Grid>
+
+                            <!-- Description -->
+                            <Label Text="{Binding Description}"
+                                   FontSize="14"
+                                   TextColor="{AppThemeBinding Light={StaticResource SubtextLight}, Dark={StaticResource SubtextDark}}"
+                                   IsVisible="{Binding Description, Converter={x:Static local:StringNotEmptyConverter.Instance}}" />
+
+                            <!-- Assigned date -->
+                            <Label Text="{Binding CreatedAt, StringFormat='Assigned: {0:dd MMM yyyy · HH:mm}'}"
+                                   FontSize="12"
+                                   TextColor="{AppThemeBinding Light={StaticResource SubtextLight}, Dark={StaticResource SubtextDark}}" />
+
+                            <!-- Completed date -->
+                            <Label Text="{Binding CompletedAt, StringFormat='Completed: {0:dd MMM yyyy · HH:mm}'}"
+                                   FontSize="12"
+                                   TextColor="#166534"
+                                   IsVisible="False">
+                                <Label.Triggers>
+                                    <DataTrigger TargetType="Label" Binding="{Binding Status}" Value="Completed">
+                                        <Setter Property="IsVisible" Value="True" />
+                                    </DataTrigger>
+                                </Label.Triggers>
+                            </Label>
+
+                            <!-- Action buttons -->
+                            <Grid ColumnDefinitions="*,*" ColumnSpacing="10"
+                                  IsVisible="{Binding ShowActions}">
+                                <Button Grid.Column="0"
+                                        Text="▶  Start"
+                                        BackgroundColor="{StaticResource Accent}"
+                                        TextColor="White"
+                                        CornerRadius="10"
+                                        HeightRequest="42"
+                                        IsVisible="{Binding CanStart}"
+                                        Command="{Binding MarkInProgress}" />
+                                <Button Grid.Column="1"
+                                        Text="✓  Complete"
+                                        BackgroundColor="{StaticResource Success}"
+                                        TextColor="White"
+                                        CornerRadius="10"
+                                        HeightRequest="42"
+                                        IsVisible="{Binding CanComplete}"
+                                        Command="{Binding MarkCompleted}" />
+                            </Grid>
+
+                        </VerticalStackLayout>
+                    </Frame>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+    </RefreshView>
+    </Grid>
+</ContentPage>

@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:GpsSync"
+             x:DataType="local:EngineerStatusViewModel"
+             x:Class="GpsSync.EngineerStatusPage"
+             Title="Engineer Status">
+
+    <RefreshView Command="{Binding Refresh}" IsRefreshing="{Binding IsBusy}">
+    <Grid RowDefinitions="Auto,Auto,*">
+
+        <!-- Summary bar -->
+        <Frame Grid.Row="0"
+               Margin="16,12,16,0"
+               Padding="16,12"
+               CornerRadius="12"
+               HasShadow="False"
+               BorderColor="{AppThemeBinding Light=#E0E0E0, Dark=#333}">
+            <Grid ColumnDefinitions="*,Auto">
+                <Label Text="{Binding Summary}"
+                       FontSize="13"
+                       FontAttributes="Bold"
+                       VerticalOptions="Center"
+                       TextColor="{AppThemeBinding Light=#444, Dark=#CCC}" />
+                <ActivityIndicator Grid.Column="1"
+                                   IsRunning="{Binding IsBusy}"
+                                   IsVisible="{Binding IsBusy}"
+                                   Color="{StaticResource Primary}"
+                                   WidthRequest="20" HeightRequest="20" />
+            </Grid>
+        </Frame>
+
+        <!-- Legend -->
+        <HorizontalStackLayout Grid.Row="1" Spacing="16" Margin="20,10,16,4">
+            <HorizontalStackLayout Spacing="5">
+                <BoxView WidthRequest="10" HeightRequest="10" CornerRadius="5" Color="#27ae60" VerticalOptions="Center" />
+                <Label Text="Punched In" FontSize="12" TextColor="{AppThemeBinding Light=Gray, Dark=LightGray}" />
+            </HorizontalStackLayout>
+            <HorizontalStackLayout Spacing="5">
+                <BoxView WidthRequest="10" HeightRequest="10" CornerRadius="5" Color="Gray" VerticalOptions="Center" />
+                <Label Text="Punched Out" FontSize="12" TextColor="{AppThemeBinding Light=Gray, Dark=LightGray}" />
+            </HorizontalStackLayout>
+        </HorizontalStackLayout>
+
+        <!-- Engineer list -->
+        <CollectionView Grid.Row="2"
+                        ItemsSource="{Binding Engineers}"
+                        Margin="0,4,0,0">
+
+            <CollectionView.EmptyView>
+                <VerticalStackLayout VerticalOptions="Center" HorizontalOptions="Center" Spacing="8">
+                    <Label Text="No engineers found"
+                           FontSize="16"
+                           TextColor="{AppThemeBinding Light=Gray, Dark=LightGray}"
+                           HorizontalTextAlignment="Center" />
+                    <Label Text="Engineers appear here once they have a profile."
+                           FontSize="13"
+                           TextColor="{AppThemeBinding Light=Gray, Dark=LightGray}"
+                           HorizontalTextAlignment="Center" />
+                </VerticalStackLayout>
+            </CollectionView.EmptyView>
+
+            <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="local:EngineerStatusItem">
+                    <Frame Margin="16,5" Padding="14" CornerRadius="14"
+                           HasShadow="False"
+                           BorderColor="{AppThemeBinding Light=#E0E0E0, Dark=#333}"
+                           BackgroundColor="{AppThemeBinding Light=White, Dark=#1e1e1e}">
+                        <Grid ColumnDefinitions="56,*" ColumnSpacing="14">
+
+                            <!-- Avatar circle -->
+                            <Frame Grid.Column="0"
+                                   BackgroundColor="{Binding StatusColor}"
+                                   CornerRadius="28"
+                                   Padding="0"
+                                   WidthRequest="52"
+                                   HeightRequest="52"
+                                   HorizontalOptions="Center"
+                                   VerticalOptions="Center"
+                                   HasShadow="False"
+                                   BorderColor="Transparent">
+                                <Label Text="{Binding Initials}"
+                                       FontSize="17"
+                                       FontAttributes="Bold"
+                                       TextColor="White"
+                                       HorizontalTextAlignment="Center"
+                                       VerticalTextAlignment="Center" />
+                            </Frame>
+
+                            <!-- Engineer info -->
+                            <Grid Grid.Column="1"
+                                  RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+                                  RowSpacing="2">
+
+                                <Label Grid.Row="0"
+                                       Text="{Binding DisplayName}"
+                                       FontSize="15"
+                                       FontAttributes="Bold"
+                                       LineBreakMode="TailTruncation" />
+
+                                <HorizontalStackLayout Grid.Row="1" Spacing="6" Margin="0,2,0,0">
+                                    <BoxView WidthRequest="8" HeightRequest="8" CornerRadius="4"
+                                             Color="{Binding StatusColor}"
+                                             VerticalOptions="Center" />
+                                    <Label Text="{Binding StatusText}"
+                                           FontSize="13"
+                                           TextColor="{AppThemeBinding Light=Gray, Dark=LightGray}"
+                                           VerticalOptions="Center" />
+                                </HorizontalStackLayout>
+
+
+<HorizontalStackLayout Grid.Row="3" Spacing="8" Margin="0,6,0,0">
+                                    <Button Text="Assign Job"
+                                            Command="{Binding AssignCommand}"
+                                            BackgroundColor="{StaticResource Info}"
+                                            TextColor="White"
+                                            CornerRadius="6"
+                                            HeightRequest="32"
+                                            FontSize="12"
+                                            Padding="14,0" />
+                                    <Button Text="Rename"
+                                            Command="{Binding RenameCommand}"
+                                            BackgroundColor="Transparent"
+                                            TextColor="{StaticResource Accent}"
+                                            BorderColor="{StaticResource Accent}"
+                                            BorderWidth="1"
+                                            CornerRadius="6"
+                                            HeightRequest="32"
+                                            FontSize="12"
+                                            Padding="14,0" />
+                                </HorizontalStackLayout>
+
+                                <Button Grid.Row="4"
+                                        Text="Remove Engineer"
+                                        Command="{Binding RemoveCommand}"
+                                        BackgroundColor="Transparent"
+                                        TextColor="{StaticResource Danger}"
+                                        BorderColor="{StaticResource Danger}"
+                                        BorderWidth="1"
+                                        CornerRadius="6"
+                                        HeightRequest="32"
+                                        FontSize="12"
+                                        HorizontalOptions="Start"
+                                        Margin="0,4,0,0"
+                                        Padding="14,0" />
+                            </Grid>
+                        </Grid>
+                    </Frame>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+    </Grid>
+    </RefreshView>
+
+</ContentPage>

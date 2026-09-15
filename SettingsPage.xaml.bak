@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:GpsSync"
+             x:DataType="local:SettingsViewModel"
+             x:Class="GpsSync.SettingsPage"
+             Title="Settings">
+
+    <ScrollView>
+        <VerticalStackLayout Spacing="12" Padding="16,16,16,32">
+
+            <!-- Account section -->
+            <Label Text="ACCOUNT"
+                   FontSize="11" FontAttributes="Bold"
+                   TextColor="{AppThemeBinding Light={StaticResource SubtextLight}, Dark={StaticResource SubtextDark}}"
+                   Margin="4,8,0,0" />
+
+            <Frame Padding="18">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="Display Name"
+                           FontSize="13" FontAttributes="Bold"
+                           TextColor="{AppThemeBinding Light={StaticResource SubtextLight}, Dark={StaticResource SubtextDark}}" />
+                    <Border StrokeShape="RoundRectangle 10"
+                            Stroke="{AppThemeBinding Light={StaticResource Gray200}, Dark={StaticResource SurfaceBorderDark}}"
+                            BackgroundColor="{AppThemeBinding Light={StaticResource Gray100}, Dark=#0F172A}"
+                            Padding="4,0">
+                        <Entry Text="{Binding DisplayName}"
+                               Placeholder="Enter your name"
+                               BackgroundColor="Transparent" />
+                    </Border>
+                    <Button Text="Save Name"
+                            BackgroundColor="{StaticResource Accent}"
+                            TextColor="White"
+                            CornerRadius="10"
+                            HeightRequest="44"
+                            FontSize="14"
+                            Command="{Binding SaveDisplayName}" />
+                </VerticalStackLayout>
+            </Frame>
+
+
+            <!-- Admin notification section -->
+            <Label Text="NOTIFICATIONS"
+                   FontSize="11" FontAttributes="Bold"
+                   TextColor="{AppThemeBinding Light={StaticResource SubtextLight}, Dark={StaticResource SubtextDark}}"
+                   Margin="4,8,0,0"
+                   IsVisible="{Binding IsAdmin}" />
+
+            <Frame Padding="18" IsVisible="{Binding IsAdmin}">
+                <VerticalStackLayout Spacing="16">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <VerticalStackLayout Spacing="2" VerticalOptions="Center">
+                            <Label Text="Punch In / Out" FontSize="15" FontAttributes="Bold" />
+                            <Label Text="Alert when an engineer clocks in or out"
+                                   FontSize="12"
+                                   TextColor="{AppThemeBinding Light={StaticResource SubtextLight}, Dark={StaticResource SubtextDark}}" />
+                        </VerticalStackLayout>
+                        <Switch Grid.Column="1"
+                                IsToggled="{Binding NotifyPunchInOut}"
+                                VerticalOptions="Center"
+                                OnColor="{StaticResource Accent}"
+                                ThumbColor="{AppThemeBinding Light=#4B5563, Dark=White}" />
+                    </Grid>
+                    <BoxView HeightRequest="1" Color="{AppThemeBinding Light=#E5E7EB, Dark=#374151}" />
+                    <Grid ColumnDefinitions="*,Auto">
+                        <VerticalStackLayout Spacing="2" VerticalOptions="Center">
+                            <Label Text="Job Accepted / Declined" FontSize="15" FontAttributes="Bold" />
+                            <Label Text="Alert when an engineer responds to a job"
+                                   FontSize="12"
+                                   TextColor="{AppThemeBinding Light={StaticResource SubtextLight}, Dark={StaticResource SubtextDark}}" />
+                        </VerticalStackLayout>
+                        <Switch Grid.Column="1"
+                                IsToggled="{Binding NotifyJobStatus}"
+                                VerticalOptions="Center"
+                                OnColor="{StaticResource Accent}"
+                                ThumbColor="{AppThemeBinding Light=#4B5563, Dark=White}" />
+                    </Grid>
+                </VerticalStackLayout>
+            </Frame>
+
+            <!-- Preferences section -->
+            <Label Text="PREFERENCES"
+                   FontSize="11" FontAttributes="Bold"
+                   TextColor="{AppThemeBinding Light={StaticResource SubtextLight}, Dark={StaticResource SubtextDark}}"
+                   Margin="4,8,0,0" />
+
+            <Frame Padding="18"
+                   IsVisible="{Binding IsAdmin, Converter={StaticResource InvertedBoolConverter}}">
+                <Grid ColumnDefinitions="*,Auto">
+                    <VerticalStackLayout Spacing="2" VerticalOptions="Center">
+                        <Label Text="Notifications" FontSize="15" FontAttributes="Bold" />
+                        <Label Text="Network change alerts"
+                               FontSize="12"
+                               TextColor="{AppThemeBinding Light={StaticResource SubtextLight}, Dark={StaticResource SubtextDark}}" />
+                    </VerticalStackLayout>
+                    <CheckBox Grid.Column="1"
+                              IsChecked="{Binding IsNotificationsEnabled}"
+                              VerticalOptions="Center" />
+                </Grid>
+            </Frame>
+
+            <Frame Padding="18">
+                <Grid ColumnDefinitions="*,Auto">
+                    <VerticalStackLayout Spacing="2" VerticalOptions="Center">
+                        <Label Text="Dark Mode" FontSize="15" FontAttributes="Bold" />
+                        <Label Text="Switch app appearance"
+                               FontSize="12"
+                               TextColor="{AppThemeBinding Light={StaticResource SubtextLight}, Dark={StaticResource SubtextDark}}" />
+                    </VerticalStackLayout>
+                    <Switch Grid.Column="1"
+                            IsToggled="{Binding IsDarkMode}"
+                            VerticalOptions="Center"
+                            OnColor="{StaticResource Accent}"
+                            ThumbColor="{AppThemeBinding Light=#4B5563, Dark=White}" />
+                </Grid>
+            </Frame>
+
+            <!-- Sign out -->
+            <Label Text="SESSION"
+                   FontSize="11" FontAttributes="Bold"
+                   TextColor="{AppThemeBinding Light={StaticResource SubtextLight}, Dark={StaticResource SubtextDark}}"
+                   Margin="4,8,0,0" />
+
+            <Button Text="Sign Out"
+                    BackgroundColor="Transparent"
+                    TextColor="{StaticResource Danger}"
+                    BorderColor="{StaticResource Danger}"
+                    BorderWidth="1.5"
+                    CornerRadius="14"
+                    HeightRequest="52"
+                    FontSize="15"
+                    Command="{Binding Logout}" />
+
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

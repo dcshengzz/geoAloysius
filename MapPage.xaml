@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:mapsui="clr-namespace:Mapsui.UI.Maui;assembly=Mapsui.UI.Maui"
+             xmlns:local="clr-namespace:GpsSync"
+             x:DataType="local:MapViewModel"
+             x:Class="GpsSync.MapPage"
+             Title="Live Map">
+
+    <Grid>
+        <mapsui:MapControl x:Name="MapControl" />
+
+        <!-- Engineer summary bar (admin only) -->
+        <Frame IsVisible="{Binding IsAdmin}"
+               BackgroundColor="#FFFFFFD0"
+               CornerRadius="10"
+               Padding="12,6"
+               HorizontalOptions="Start"
+               VerticalOptions="End"
+               Margin="16,0,0,32"
+               HasShadow="True">
+            <StackLayout Orientation="Horizontal" Spacing="8">
+                <Label Text="{Binding EngineerSummary}"
+                       FontSize="13"
+                       FontAttributes="Bold"
+                       TextColor="#333"
+                       VerticalOptions="Center" />
+                <ActivityIndicator IsRunning="{Binding IsRefreshing}"
+                                   IsVisible="{Binding IsRefreshing}"
+                                   Color="#333"
+                                   WidthRequest="14"
+                                   HeightRequest="14"
+                                   VerticalOptions="Center" />
+            </StackLayout>
+        </Frame>
+
+        <!-- Filter chips (admin only) -->
+        <Frame IsVisible="{Binding IsAdmin}"
+               BackgroundColor="#1a3a5c"
+               CornerRadius="24"
+               Padding="4,4"
+               HorizontalOptions="Center"
+               VerticalOptions="Start"
+               Margin="0,16,0,0"
+               HasShadow="True">
+            <HorizontalStackLayout Spacing="2">
+                <Button Text="All"
+                        Command="{Binding SetFilterMode}" CommandParameter="0"
+                        BackgroundColor="{Binding FilterMode, Converter={StaticResource FilterChipBgConverter}, ConverterParameter='0'}"
+                        TextColor="{Binding FilterMode, Converter={StaticResource FilterChipTextConverter}, ConverterParameter='0'}"
+                        CornerRadius="20" FontSize="12" HeightRequest="36" Padding="16,0" BorderWidth="0" />
+                <Button Text="Online"
+                        Command="{Binding SetFilterMode}" CommandParameter="1"
+                        BackgroundColor="{Binding FilterMode, Converter={StaticResource FilterChipBgConverter}, ConverterParameter='1'}"
+                        TextColor="{Binding FilterMode, Converter={StaticResource FilterChipTextConverter}, ConverterParameter='1'}"
+                        CornerRadius="20" FontSize="12" HeightRequest="36" Padding="16,0" BorderWidth="0" />
+                <Button Text="Available"
+                        Command="{Binding SetFilterMode}" CommandParameter="2"
+                        BackgroundColor="{Binding FilterMode, Converter={StaticResource FilterChipBgConverter}, ConverterParameter='2'}"
+                        TextColor="{Binding FilterMode, Converter={StaticResource FilterChipTextConverter}, ConverterParameter='2'}"
+                        CornerRadius="20" FontSize="12" HeightRequest="36" Padding="16,0" BorderWidth="0" />
+                <Button Text="On Job"
+                        Command="{Binding SetFilterMode}" CommandParameter="3"
+                        BackgroundColor="{Binding FilterMode, Converter={StaticResource FilterChipBgConverter}, ConverterParameter='3'}"
+                        TextColor="{Binding FilterMode, Converter={StaticResource FilterChipTextConverter}, ConverterParameter='3'}"
+                        CornerRadius="20" FontSize="12" HeightRequest="36" Padding="16,0" BorderWidth="0" />
+                <Button Text="Offline"
+                        Command="{Binding SetFilterMode}" CommandParameter="4"
+                        BackgroundColor="{Binding FilterMode, Converter={StaticResource FilterChipBgConverter}, ConverterParameter='4'}"
+                        TextColor="{Binding FilterMode, Converter={StaticResource FilterChipTextConverter}, ConverterParameter='4'}"
+                        CornerRadius="20" FontSize="12" HeightRequest="36" Padding="16,0" BorderWidth="0" />
+            </HorizontalStackLayout>
+        </Frame>
+
+        <!-- Center-on-me button (engineers only) -->
+        <Button Text="⊙"
+                Command="{Binding CenterOnMe}"
+                HorizontalOptions="End"
+                VerticalOptions="End"
+                Margin="0,0,16,32"
+                WidthRequest="56"
+                HeightRequest="56"
+                CornerRadius="28"
+                FontSize="26"
+                BackgroundColor="{StaticResource Info}"
+                TextColor="White"
+                IsVisible="{Binding IsAdmin, Converter={StaticResource InvertedBoolConverter}}" />
+
+        <!-- Worker info callout (shown when a dot is tapped) -->
+        <Frame IsVisible="{Binding IsCalloutVisible}"
+               BackgroundColor="{AppThemeBinding Light=White, Dark=#1e1e1e}"
+               CornerRadius="14"
+               Padding="16,12"
+               HorizontalOptions="FillAndExpand"
+               VerticalOptions="Start"
+               Margin="16,64,16,0"
+               HasShadow="True">
+            <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto">
+
+                <!-- Name + dismiss -->
+                <Grid ColumnDefinitions="*,Auto">
+                    <Label Text="{Binding CalloutName}"
+                           FontSize="17" FontAttributes="Bold"
+                           VerticalOptions="Center" />
+                    <Button Text="✕"
+                            Command="{Binding DismissCallout}"
+                            BackgroundColor="Transparent"
+                            TextColor="{AppThemeBinding Light=Gray, Dark=LightGray}"
+                            WidthRequest="36" HeightRequest="36" Padding="0"
+                            Grid.Column="1" />
+                </Grid>
+
+                <!-- Status dot + text -->
+                <HorizontalStackLayout Grid.Row="1" Spacing="6" Margin="0,4,0,0">
+                    <BoxView WidthRequest="10" HeightRequest="10" CornerRadius="5"
+                             Color="{Binding CalloutStatusColor}"
+                             VerticalOptions="Center" />
+                    <Label Text="{Binding CalloutStatus}"
+                           FontSize="13"
+                           TextColor="{AppThemeBinding Light=Gray, Dark=LightGray}"
+                           VerticalOptions="Center" />
+                </HorizontalStackLayout>
+
+                <!-- Last seen -->
+                <Label Grid.Row="2"
+                       Text="{Binding CalloutLastSeen}"
+                       FontSize="12"
+                       TextColor="{AppThemeBinding Light=Gray, Dark=LightGray}"
+                       Margin="0,2,0,0" />
+
+                <!-- Last ping -->
+                <Label Grid.Row="3"
+                       Text="{Binding CalloutLastPing}"
+                       FontSize="12"
+                       TextColor="{AppThemeBinding Light=Gray, Dark=LightGray}"
+                       Margin="0,1,0,0" />
+
+                <!-- Action buttons (admin only) -->
+                <HorizontalStackLayout Grid.Row="4" Spacing="8" Margin="0,10,0,0"
+                                       IsVisible="{Binding IsAdmin}">
+                    <Button Text="Assign Job"
+                            Command="{Binding AssignJobFromCallout}"
+                            BackgroundColor="{StaticResource Info}"
+                            TextColor="White"
+                            CornerRadius="8"
+                            HeightRequest="36"
+                            FontSize="12"
+                            Padding="12,0" />
+                </HorizontalStackLayout>
+
+            </Grid>
+        </Frame>
+    </Grid>
+
+</ContentPage>

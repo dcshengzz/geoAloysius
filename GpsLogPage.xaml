@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:gpssync="clr-namespace:GpsSync"
+             x:DataType="gpssync:GpsLogViewModel"
+             x:Class="GpsSync.GpsLogPage"
+             Title="GPS Pings">
+
+    <ContentPage.ToolbarItems>
+        <ToolbarItem Text="Filter" Command="{Binding ToggleFilter}" />
+        <ToolbarItem Text="Clear" Command="{Binding Clear}" />
+    </ContentPage.ToolbarItems>
+
+    <Grid RowDefinitions="Auto,*">
+
+        <!-- Date Filter Panel -->
+        <Frame Grid.Row="0"
+               IsVisible="{Binding IsFilterVisible}"
+               Margin="12,8,12,0"
+               Padding="12"
+               CornerRadius="10"
+               BorderColor="{AppThemeBinding Light={StaticResource SurfaceBorderLight}, Dark={StaticResource SurfaceBorderDark}}">
+            <VerticalStackLayout Spacing="8">
+                <Label Text="Filter by Date" FontAttributes="Bold" FontSize="13" />
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                    <Label Text="From:" VerticalOptions="Center" />
+                    <DatePicker Grid.Column="1" Date="{Binding FromDate}" />
+                </Grid>
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                    <Label Text="To:" VerticalOptions="Center" />
+                    <DatePicker Grid.Column="1" Date="{Binding ToDate}" />
+                </Grid>
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                    <Button Grid.Column="0" Text="Apply" Command="{Binding ApplyFilter}"
+                            CornerRadius="8" HeightRequest="36" BackgroundColor="{StaticResource Primary}" TextColor="White" />
+                    <Button Grid.Column="1" Text="Clear Filter" Command="{Binding ClearFilter}"
+                            CornerRadius="8" HeightRequest="36" BackgroundColor="Transparent"
+                            TextColor="{StaticResource Danger}" BorderColor="{StaticResource Danger}" BorderWidth="1" />
+                </Grid>
+            </VerticalStackLayout>
+        </Frame>
+
+        <RefreshView Grid.Row="1"
+                     Command="{Binding Load}"
+                     IsRefreshing="{Binding IsBusy}">
+            <CollectionView ItemsSource="{Binding Logs}">
+                <CollectionView.EmptyView>
+                    <VerticalStackLayout VerticalOptions="Center" HorizontalOptions="Center"
+                                         Spacing="8" Margin="32">
+                        <Label Text="📍" FontSize="48" HorizontalTextAlignment="Center" />
+                        <Label Text="No GPS Pings Recorded"
+                               FontSize="16" FontAttributes="Bold"
+                               HorizontalTextAlignment="Center" />
+                        <Label Text="GPS pings will appear here once you punch in and tracking begins."
+                               FontSize="13"
+                               TextColor="{AppThemeBinding Light={StaticResource SubtextLight}, Dark={StaticResource SubtextDark}}"
+                               HorizontalTextAlignment="Center" />
+                    </VerticalStackLayout>
+                </CollectionView.EmptyView>
+
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="gpssync:GpsPing">
+                        <Frame Margin="12,4" Padding="16,12">
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                                <!-- Pin icon column -->
+                                <Label Grid.Column="0" Text="📍" FontSize="20" VerticalOptions="Start" Margin="0,2,0,0" />
+                                <!-- Content column -->
+                                <VerticalStackLayout Grid.Column="1" Spacing="3">
+                                    <Label Text="{Binding Timestamp}" FontAttributes="Bold" FontSize="14" />
+                                    <Label Text="{Binding Latitude, StringFormat='Lat: {0:F6}'}" FontSize="13"
+                                           TextColor="{AppThemeBinding Light={StaticResource SubtextLight}, Dark={StaticResource SubtextDark}}" />
+                                    <Label Text="{Binding Longitude, StringFormat='Lon: {0:F6}'}" FontSize="13"
+                                           TextColor="{AppThemeBinding Light={StaticResource SubtextLight}, Dark={StaticResource SubtextDark}}" />
+                                    <Label FontSize="12" FontAttributes="Bold">
+                                        <Label.Triggers>
+                                            <DataTrigger TargetType="Label" Binding="{Binding Synced}" Value="True">
+                                                <Setter Property="Text" Value="✓ Synced" />
+                                                <Setter Property="TextColor" Value="{StaticResource Success}" />
+                                            </DataTrigger>
+                                            <DataTrigger TargetType="Label" Binding="{Binding Synced}" Value="False">
+                                                <Setter Property="Text" Value="⏳ Pending sync" />
+                                                <Setter Property="TextColor" Value="{StaticResource Danger}" />
+                                            </DataTrigger>
+                                        </Label.Triggers>
+                                    </Label>
+                                </VerticalStackLayout>
+                            </Grid>
+                        </Frame>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+
+                <CollectionView.Footer>
+                    <Button Text="Load More"
+                            Command="{Binding LoadMore}"
+                            IsVisible="{Binding HasMore}"
+                            Margin="16,8"
+                            CornerRadius="8"
+                            HeightRequest="40"
+                            BackgroundColor="{StaticResource Primary}"
+                            TextColor="White" />
+                </CollectionView.Footer>
+            </CollectionView>
+        </RefreshView>
+
+    </Grid>
+</ContentPage>

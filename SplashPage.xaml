@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:GpsSync"
+             x:DataType="local:SplashViewModel"
+             x:Class="GpsSync.SplashPage"
+             BackgroundColor="{StaticResource Primary}"
+             NavigationPage.HasNavigationBar="False">
+
+    <VerticalStackLayout HorizontalOptions="Fill" VerticalOptions="Center" Spacing="12">
+
+        <Label Text="HitachiDispatch"
+               FontSize="38"
+               FontAttributes="Bold"
+               TextColor="White"
+               HorizontalTextAlignment="Center"
+               />
+
+        <Label Text="FIELD OPERATIONS PLATFORM"
+               FontSize="11"
+               TextColor="#94A3B8"
+               HorizontalTextAlignment="Center"
+               />
+
+        <ActivityIndicator IsRunning="True"
+                           Color="White"
+                           HorizontalOptions="Center"
+                           WidthRequest="28" HeightRequest="28"
+                           Margin="0,28,0,0" />
+
+    </VerticalStackLayout>
+
+</ContentPage>
