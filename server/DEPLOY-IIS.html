@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HitachiDispatch — IIS Deploy Guide</title>
+<meta name="description" content="Step-by-step: deploy the GpsSync API to Windows Server + IIS + SQL Server, exposed over HTTPS with Tailscale.">
+<style>
+  :root{
+    --bg:#f6f7f9; --panel:#ffffff; --ink:#12151b; --muted:#5b6472; --line:#e3e7ee;
+    --accent:#2563eb; --accent-ink:#ffffff; --code-bg:#0f1730; --code-ink:#e7ecf7;
+    --ok:#0f9d58; --warn:#b7791f; --warn-bg:#fef6e6; --warn-line:#f0d9a8;
+    --danger:#c0392b; --chip:#eef2ff; --chip-ink:#3346a3;
+    --shadow:0 1px 2px rgba(16,22,40,.06),0 8px 24px rgba(16,22,40,.06);
+    --maxw:960px;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#0c1017; --panel:#141a24; --ink:#e8ecf3; --muted:#98a3b4; --line:#242c3a;
+      --accent:#5b8cff; --accent-ink:#0b1020; --code-bg:#0a0f1e; --code-ink:#dbe4f5;
+      --warn:#e0b055; --warn-bg:#2a2410; --warn-line:#4a3d18; --chip:#1b2440; --chip-ink:#a9baff;
+      --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0c1017; --panel:#141a24; --ink:#e8ecf3; --muted:#98a3b4; --line:#242c3a;
+    --accent:#5b8cff; --accent-ink:#0b1020; --code-bg:#0a0f1e; --code-ink:#dbe4f5;
+    --warn:#e0b055; --warn-bg:#2a2410; --warn-line:#4a3d18; --chip:#1b2440; --chip-ink:#a9baff;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:32px 16px 96px}
+  header.top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  h1{font-size:clamp(24px,4vw,34px);line-height:1.15;margin:0 0 6px}
+  .sub{color:var(--muted);margin:0 0 4px;font-size:15px}
+  .meta{color:var(--muted);font-size:13px;margin-top:6px}
+  h2{font-size:20px;margin:40px 0 12px;padding-top:12px;border-top:1px solid var(--line)}
+  h3{font-size:16px;margin:22px 0 8px}
+  p{margin:10px 0}
+  a{color:var(--accent)}
+  code{font-family:"SF Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.92em;
+    background:var(--chip);color:var(--chip-ink);padding:.08em .4em;border-radius:5px}
+  pre{position:relative;background:var(--code-bg);color:var(--code-ink);border-radius:10px;
+    padding:14px 16px;overflow:auto;margin:12px 0;font-size:13.5px;line-height:1.55;box-shadow:var(--shadow)}
+  pre code{background:none;color:inherit;padding:0;font-size:inherit}
+  pre .cmt{color:#8ea0c9}
+  .copy{position:absolute;top:8px;right:8px;background:rgba(255,255,255,.08);color:#cdd8f0;border:1px solid rgba(255,255,255,.14);
+    border-radius:6px;font-size:11px;padding:3px 8px;cursor:pointer}
+  .copy:hover{background:rgba(255,255,255,.16)}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin:16px 0;box-shadow:var(--shadow)}
+  .toc{columns:2;column-gap:26px}
+  .toc a{display:block;padding:3px 0;color:var(--ink);text-decoration:none;font-size:14.5px}
+  .toc a:hover{color:var(--accent)}
+  @media (max-width:560px){.toc{columns:1}}
+  .callout{border:1px solid var(--warn-line);background:var(--warn-bg);border-radius:12px;padding:14px 16px;margin:16px 0}
+  .callout.info{border-color:var(--line);background:var(--chip)}
+  .callout b{color:var(--warn)}
+  .step{display:flex;gap:14px;align-items:baseline}
+  .num{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:var(--accent);color:var(--accent-ink);
+    display:grid;place-items:center;font-weight:700;font-size:14px;box-shadow:var(--shadow);transform:translateY(6px)}
+  .step .body{flex:1 1 auto;min-width:0}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:var(--chip);color:var(--chip-ink);font-weight:600}
+  .chip{display:inline-block;background:var(--chip);color:var(--chip-ink);border-radius:999px;padding:2px 10px;font-size:12px;font-weight:600}
+  ul.check{list-style:none;padding-left:0}
+  ul.check li{padding:5px 0 5px 28px;position:relative}
+  ul.check li::before{content:"";position:absolute;left:2px;top:11px;width:14px;height:8px;border-left:2.5px solid var(--ok);border-bottom:2.5px solid var(--ok);transform:rotate(-45deg)}
+  .themebtn{background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer}
+  .diagram-wrap{overflow-x:auto;margin:8px 0}
+  footer{margin-top:56px;color:var(--muted);font-size:13px;border-top:1px solid var(--line);padding-top:16px}
+  .kbd{border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px;font-size:12px;background:var(--panel)}
+  @media print{.copy,.themebtn{display:none}pre{box-shadow:none;border:1px solid #ccc}body{background:#fff}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <h1>Deploy HitachiDispatch to Windows Server + IIS</h1>
+      <p class="sub">GpsSync API · SQL Server (local) · HTTPS over Tailscale</p>
+      <p class="meta">Target server: Windows Server &nbsp;•&nbsp; IIS &nbsp;•&nbsp; SQL Server &nbsp;•&nbsp; SSMS &nbsp;•&nbsp; Tailscale</p>
+    </div>
+    <button class="themebtn" id="themebtn" type="button">◐ Theme</button>
+  </header>
+
+  <div class="callout">
+    <b>Is it ready to deploy as-is?</b> &nbsp;Almost — <b>no code changes</b>, but the repo is packaged for
+    <b>Docker/Linux</b>. For IIS you install the <b>.NET&nbsp;10 Hosting Bundle</b>, repoint the
+    <b>connection string</b> at your local SQL Server, set a real <b>JWT key</b>, publish, and let
+    <b>Tailscale</b> provide HTTPS (it replaces Caddy). The app <b>auto-creates the database, runs
+    migrations, and seeds the admin</b> on first start, so there is no manual schema step.
+  </div>
+
+  <!-- FAST PATH ----------------------------------------------------------->
+  <div class="panel" id="fast" style="border-color:var(--accent)">
+    <h3 style="margin-top:4px">⚡ Fast path — the repo ships copy-paste artifacts</h3>
+    <p>Three companion files automate most of this guide. The prerequisites still apply first: install
+    IIS → the <b>.NET&nbsp;10 Hosting Bundle</b> → Tailscale (<a href="#prereq">Step&nbsp;0</a>).</p>
+    <table>
+      <tr><th>File (in the repo)</th><th>What it does</th><th>Replaces</th></tr>
+      <tr><td><code>server/deploy/deploy-iis.ps1</code></td><td>Publishes, creates the app pool + site (No Managed Code, AlwaysRunning), fills the JWT key, sets permissions</td><td>Steps 2 · 3 · 4 · 8</td></tr>
+      <tr><td><code>server/GpsSync.Api/appsettings.Production.json</code></td><td>Windows-auth connection string + <code>Jwt:Key</code> slot (published automatically)</td><td>Step 3</td></tr>
+      <tr><td><code>server/deploy/gpssync-maintenance.sql</code></td><td>Indexes + nightly GPS-ping retention job</td><td>Step 9</td></tr>
+    </table>
+    <p>The whole deployment, in an <b>elevated PowerShell</b> on the server:</p>
+    <pre><code><span class="cmt"># 1. publish + configure IIS in one shot</span>
+cd C:\path\to\geo\server\deploy
+.\deploy-iis.ps1
+
+<span class="cmt"># 2. paste the two lines the script prints into SSMS (lets the app reach SQL)</span>
+<span class="cmt">#    CREATE LOGIN [IIS AppPool\GpsSyncApi] FROM WINDOWS;</span>
+<span class="cmt">#    ALTER SERVER ROLE dbcreator ADD MEMBER [IIS AppPool\GpsSyncApi];</span>
+
+<span class="cmt"># 3. first run — creates the GpsSync DB + tables, seeds the admin</span>
+curl http://localhost:5080/health
+
+<span class="cmt"># 4. run gpssync-maintenance.sql once in SSMS (indexes + retention)</span>
+
+<span class="cmt"># 5. expose over HTTPS to the phones (public, no per-phone setup)</span>
+tailscale funnel --bg http://localhost:5080</code></pre>
+    <p class="sub">Handy switches: <code>-JwtKey "&lt;secret&gt;"</code> to set your own key ·
+    <code>-ConnectionString "&lt;sql-auth string&gt;"</code> to use a SQL login instead of Windows auth ·
+    <code>-Port 8080</code> to change the internal port. <b>Re-running preserves the existing JWT key</b>,
+    so redeploys don’t log everyone out.</p>
+    <p class="sub">Want to understand each piece first? The manual walkthrough below does exactly the same thing by hand.</p>
+  </div>
+
+  <div class="panel">
+    <h3 style="margin-top:4px">On this page</h3>
+    <nav class="toc">
+      <a href="#fast">▸ ⚡ Fast path: one-command deploy</a>
+      <a href="#arch">▸ Architecture (diagram)</a>
+      <a href="#prereq">▸ 0 · Install prerequisites</a>
+      <a href="#db">▸ 1 · Prepare SQL Server</a>
+      <a href="#publish">▸ 2 · Publish the API</a>
+      <a href="#config">▸ 3 · Set connection string + JWT</a>
+      <a href="#iis">▸ 4 · Create the IIS site</a>
+      <a href="#firstrun">▸ 5 · First run + verify</a>
+      <a href="#tailscale">▸ 6 · HTTPS via Tailscale</a>
+      <a href="#app">▸ 7 · Point the app at it</a>
+      <a href="#reliable">▸ 8 · Keep it running</a>
+      <a href="#harden">▸ 9 · Hardening checklist</a>
+      <a href="#trouble">▸ Troubleshooting</a>
+      <a href="#hostguide">▸ Host THIS guide via Tailscale</a>
+    </nav>
+  </div>
+
+  <!-- ARCHITECTURE ------------------------------------------------------->
+  <h2 id="arch">Architecture</h2>
+  <p>Only Tailscale faces the outside. IIS and SQL Server stay on <code>localhost</code>, exactly like the
+  Docker design where only Caddy was exposed.</p>
+
+  <div class="diagram-wrap panel" style="padding:20px">
+  <svg viewBox="0 0 900 380" width="100%" role="img" aria-label="Architecture diagram: phone to Tailscale to IIS to SQL Server"
+       font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+    <defs>
+      <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+        <path d="M0,0 L8,3 L0,6 Z" fill="var(--accent)"/>
+      </marker>
+      <style>
+        .box{fill:var(--panel);stroke:var(--line);stroke-width:1.5}
+        .lbl{fill:var(--ink);font-size:14px;font-weight:600}
+        .sm{fill:var(--muted);font-size:11.5px}
+        .edge{stroke:var(--accent);stroke-width:2;fill:none;marker-end:url(#arrow)}
+        .edgelbl{fill:var(--muted);font-size:11px}
+        .zone{fill:none;stroke:var(--line);stroke-width:1.5;stroke-dasharray:6 5;rx:14}
+        .zonelbl{fill:var(--muted);font-size:11px;font-weight:600;letter-spacing:.4px}
+        .ico{fill:var(--accent)}
+      </style>
+
+      <!-- Field phone -->
+      <rect class="box" x="20" y="150" width="150" height="86" rx="12"/>
+      <text class="lbl" x="95" y="184" text-anchor="middle">📱 Field phone</text>
+      <text class="sm" x="95" y="204" text-anchor="middle">Android app (Release)</text>
+      <text class="sm" x="95" y="219" text-anchor="middle">on mobile data</text>
+
+      <!-- Internet cloud label -->
+      <text class="edgelbl" x="235" y="176" text-anchor="middle">HTTPS</text>
+      <text class="edgelbl" x="235" y="205" text-anchor="middle">(443)</text>
+      <path class="edge" d="M172,193 L300,193"/>
+
+      <!-- Server zone -->
+      <rect class="zone" x="315" y="40" width="565" height="300" rx="16"/>
+      <text class="zonelbl" x="335" y="62">WINDOWS SERVER (your hardware)</text>
+
+      <!-- Tailscale -->
+      <rect class="box" x="335" y="150" width="150" height="86" rx="12"/>
+      <text class="lbl" x="410" y="180" text-anchor="middle">Tailscale</text>
+      <text class="sm" x="410" y="199" text-anchor="middle">Serve / Funnel</text>
+      <text class="sm" x="410" y="214" text-anchor="middle">terminates TLS ✔ cert</text>
+
+      <path class="edge" d="M487,193 L560,193"/>
+      <text class="edgelbl" x="523" y="184" text-anchor="middle">HTTP</text>
+      <text class="edgelbl" x="523" y="206" text-anchor="middle">:5080</text>
+
+      <!-- IIS -->
+      <rect class="box" x="562" y="150" width="150" height="86" rx="12"/>
+      <text class="lbl" x="637" y="180" text-anchor="middle">IIS</text>
+      <text class="sm" x="637" y="199" text-anchor="middle">ASP.NET Core Module</text>
+      <text class="sm" x="637" y="214" text-anchor="middle">GpsSync.Api.dll</text>
+
+      <path class="edge" d="M714,193 L788,193"/>
+      <text class="edgelbl" x="751" y="184" text-anchor="middle">SQL</text>
+      <text class="edgelbl" x="751" y="206" text-anchor="middle">:1433</text>
+
+      <!-- SQL Server -->
+      <rect class="box" x="735" y="150" width="128" height="86" rx="12"/>
+      <text class="lbl" x="799" y="182" text-anchor="middle">🗄️ SQL Server</text>
+      <text class="sm" x="799" y="201" text-anchor="middle">GpsSync DB</text>
+      <text class="sm" x="799" y="216" text-anchor="middle">(auto-migrated)</text>
+
+      <!-- Note under Tailscale -->
+      <text class="sm" x="410" y="270" text-anchor="middle" style="font-size:11px">Funnel = public</text>
+      <text class="sm" x="410" y="286" text-anchor="middle" style="font-size:11px">Serve = tailnet-only</text>
+    </svg>
+  </div>
+  <p class="sub">Flow: phone → <b>Tailscale</b> (HTTPS, valid cert) → <b>IIS</b> on <code>localhost:5080</code> (HTTP) →
+  <b>SQL Server</b> on <code>localhost:1433</code>.</p>
+
+  <!-- PREREQ -------------------------------------------------------------->
+  <h2 id="prereq">0 · Install prerequisites on the server</h2>
+  <table>
+    <tr><th>Component</th><th>Status</th><th>Action</th></tr>
+    <tr><td>IIS (Web Server role)</td><td><span class="chip">you have it</span></td><td>Ensure the Web Server (IIS) role is installed <b>before</b> the Hosting Bundle.</td></tr>
+    <tr><td><b>.NET 10 Hosting Bundle</b></td><td><span class="chip" style="background:var(--warn-bg);color:var(--warn)">likely missing</span></td><td>The critical piece. Installs the .NET 10 runtime <b>and</b> the ASP.NET Core Module into IIS.</td></tr>
+    <tr><td>SQL Server</td><td><span class="chip">you have it</span></td><td>Enable <b>mixed-mode auth</b> if you'll use a SQL login (Step 1).</td></tr>
+    <tr><td>SSMS</td><td><span class="chip">you have it</span></td><td>Used in Step 1.</td></tr>
+    <tr><td>Tailscale for Windows</td><td><span class="chip" style="background:var(--warn-bg);color:var(--warn)">install</span></td><td>Runs as a Windows service; provides HTTPS + reachability.</td></tr>
+    <tr><td>.NET 10 SDK <i>(optional)</i></td><td>—</td><td>Only if you want to <code>dotnet publish</code> on the server itself instead of copying a published folder.</td></tr>
+  </table>
+
+  <p>Download the Hosting Bundle from Microsoft (search “<b>ASP.NET Core 10.0 Windows Hosting Bundle</b>”, on
+  <code>dotnet.microsoft.com/download/dotnet/10.0</code>). After installing it, restart IIS so the module loads:</p>
+  <pre><code>net stop was /y
+net start w3svc</code></pre>
+  <div class="callout"><b>Order matters.</b> If you install the Hosting Bundle <i>before</i> IIS, re-run the bundle
+  (Repair) afterward — otherwise the ASP.NET Core Module won’t be registered and every request returns
+  <code>HTTP 500.19</code> / <code>500.21</code>.</div>
+
+  <!-- DB ------------------------------------------------------------------>
+  <h2 id="db">1 · Prepare SQL Server (SSMS)</h2>
+  <p>The API creates the <code>GpsSync</code> database itself on first run — you only need to give it a login
+  that’s allowed to do so. Pick one option.</p>
+
+  <h3>Option A — Windows auth via the app-pool identity <span class="chip">recommended, no password in config</span></h3>
+  <p>Do this <b>after</b> Step 4 creates the app pool. In SSMS:</p>
+  <pre><code class="sql"><span class="cmt">-- Let the IIS app pool sign in to SQL, and create/own its database</span>
+CREATE LOGIN [IIS APPPOOL\GpsSyncApi] FROM WINDOWS;
+ALTER SERVER ROLE dbcreator ADD MEMBER [IIS APPPOOL\GpsSyncApi];
+<span class="cmt">-- (After the first successful run you may drop dbcreator and instead grant</span>
+<span class="cmt">--  db_owner on the GpsSync database only, for least privilege.)</span></code></pre>
+
+  <h3>Option B — Dedicated SQL login (matches the existing connection-string format)</h3>
+  <pre><code class="sql">CREATE LOGIN gpssync WITH PASSWORD = 'Strong-Passw0rd!';
+ALTER SERVER ROLE dbcreator ADD MEMBER gpssync;</code></pre>
+  <p>For Option B, SQL Server must allow SQL logins: <b>right-click the server → Properties → Security →
+  “SQL Server and Windows Authentication mode”</b>, then restart the SQL Server service.</p>
+
+  <div class="callout info">Prefer least privilege from day one? Pre-create an empty DB in SSMS
+  (<code>CREATE DATABASE GpsSync;</code>), then grant your login <code>db_owner</code> on it and skip
+  <code>dbcreator</code>. Migrations will just build the tables.</div>
+
+  <!-- PUBLISH ------------------------------------------------------------->
+  <h2 id="publish">2 · Publish the API</h2>
+  <p>On your dev machine (or on the server if the SDK is installed), from the repo:</p>
+  <pre><code><span class="cmt"># from server\GpsSync.Api</span>
+dotnet publish -c Release -o C:\publish\GpsSyncApi</code></pre>
+  <p>This produces the DLLs plus a generated <code>web.config</code> (the ASP.NET Core Module handler, in-process
+  hosting). Copy the whole <code>C:\publish\GpsSyncApi</code> folder to the server, e.g. to
+  <code>C:\inetpub\GpsSyncApi</code>.</p>
+  <p class="sub">Framework-dependent publish needs the .NET 10 runtime on the server — the Hosting Bundle from
+  Step 0 provides it, so nothing extra to install.</p>
+  <div class="callout info">⚡ <b><code>server/deploy/deploy-iis.ps1</code> does this step and Steps 3–4 for you.</b>
+  Run it in an elevated PowerShell; the manual instructions below are for understanding or a hand deploy.</div>
+
+  <!-- CONFIG -------------------------------------------------------------->
+  <h2 id="config">3 · Set the connection string + JWT key</h2>
+  <p>Edit <code>C:\inetpub\GpsSyncApi\appsettings.json</code> on the server (or create
+  <code>appsettings.Production.json</code> beside it). Three edits:</p>
+  <div class="callout info">⚡ <b>The repo already includes <code>server/GpsSync.Api/appsettings.Production.json</code></b>
+  with the Windows-auth connection string, and <code>deploy-iis.ps1</code> fills its <code>Jwt:Key</code>
+  automatically. Read on only if you’re configuring by hand or switching to a SQL login.</div>
+
+  <h3>a. Connection string → your local SQL Server</h3>
+  <pre><code class="json"><span class="cmt">// Windows auth (Option A):</span>
+"ConnectionStrings": {
+  "Default": "Server=localhost;Database=GpsSync;Trusted_Connection=True;TrustServerCertificate=True;Encrypt=False"
+}
+
+<span class="cmt">// OR SQL login (Option B):</span>
+"ConnectionStrings": {
+  "Default": "Server=localhost;Database=GpsSync;User Id=gpssync;Password=Strong-Passw0rd!;TrustServerCertificate=True;Encrypt=False"
+}</code></pre>
+  <p class="sub">If SQL Server is a named instance, use <code>Server=localhost\SQLEXPRESS</code> (or your instance name).</p>
+
+  <h3>b. Generate + set a real JWT key</h3>
+  <p>In PowerShell:</p>
+  <pre><code>[Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(48))</code></pre>
+  <p>Paste the result into <code>Jwt:Key</code> (replace the <code>__SET_VIA_ENV__…</code> placeholder). Keep the
+  same key across restarts, or every issued token is invalidated.</p>
+
+  <h3>c. Remove the <code>Urls</code> line</h3>
+  <p>Delete <code>"Urls": "http://0.0.0.0:5080"</code> — under IIS in-process hosting the site binding controls
+  the port, and leaving it just logs a warning. (IIS will serve it on whatever port you bind in Step 4.)</p>
+
+  <div class="callout"><b>Secrets note.</b> Putting the DB password / JWT key in <code>appsettings.json</code> is fine
+  for a solo internal deploy. To keep them out of the file, set them as environment variables in
+  <code>web.config</code> under <code>&lt;aspNetCore&gt;&lt;environmentVariables&gt;</code> instead
+  (<code>ConnectionStrings__Default</code>, <code>Jwt__Key</code>).</div>
+
+  <!-- IIS ----------------------------------------------------------------->
+  <h2 id="iis">4 · Create the IIS site</h2>
+  <div class="step"><div class="num">1</div><div class="body">
+    <b>Application Pools → Add Application Pool.</b> Name it <code>GpsSyncApi</code>,
+    <b>.NET CLR version = “No Managed Code”</b>, Managed pipeline = Integrated.
+    <p class="sub">“No Managed Code” is correct — ASP.NET Core does not use IIS’s CLR; the ASP.NET Core Module loads .NET 10 itself.</p>
+  </div></div>
+  <div class="step"><div class="num">2</div><div class="body">
+    <b>Sites → Add Website.</b> Site name <code>GpsSyncApi</code>; physical path
+    <code>C:\inetpub\GpsSyncApi</code>; app pool <code>GpsSyncApi</code>; binding <b>http</b>, port
+    <code>5080</code>, host name blank. (HTTP is fine here — Tailscale adds HTTPS in front.)
+  </div></div>
+  <div class="step"><div class="num">3</div><div class="body">
+    If you chose <b>Windows auth (Option A)</b>, now go back to <b>Step 1</b> and run that SQL — the login
+    <code>IIS APPPOOL\GpsSyncApi</code> only exists once the app pool does.
+  </div></div>
+
+  <!-- FIRST RUN ----------------------------------------------------------->
+  <h2 id="firstrun">5 · First run + verify</h2>
+  <p>On the server, hit the health endpoint (the first request boots the app, which runs migrations and seeds the admin):</p>
+  <pre><code>curl http://localhost:5080/health
+<span class="cmt"># -> {"status":"ok"}</span></code></pre>
+  <ul class="check">
+    <li>In SSMS, refresh Databases — <code>GpsSync</code> now exists with <code>profiles</code>, <code>dispatch_jobs</code>, <code>gps_pings</code>, Identity + token tables.</li>
+    <li>Seeded admin for first login: <code>admin@local.test</code> / <code>Admin!23</code> (change it — see Hardening).</li>
+  </ul>
+  <div class="callout">If you get <b>HTTP 500</b>: it’s almost always the DB connection (wrong server/instance, login
+  can’t create the DB) or a bad config value. See <a href="#trouble">Troubleshooting</a> to turn on the stdout log.</div>
+
+  <!-- TAILSCALE ----------------------------------------------------------->
+  <h2 id="tailscale">6 · Put HTTPS in front with Tailscale</h2>
+  <p>Install Tailscale, sign in, then find this machine’s name:</p>
+  <pre><code>tailscale up
+tailscale status      <span class="cmt"># note the name, e.g. winserver.tailnet-abc.ts.net</span></code></pre>
+
+  <h3>Choose how the phones reach it</h3>
+  <table>
+    <tr><th>&nbsp;</th><th><b>Serve</b> — tailnet only</th><th><b>Funnel</b> — public internet</th></tr>
+    <tr><td>Who can reach it</td><td>Only devices on <b>your tailnet</b></td><td><b>Anyone</b> on the internet (via the <code>.ts.net</code> URL)</td></tr>
+    <tr><td>Phone setup</td><td>Each phone must install Tailscale + join the tailnet</td><td><b>Nothing</b> on the phone — just the app</td></tr>
+    <tr><td>Best for</td><td>A small pilot / your own test phones</td><td><b>200 field engineers on mobile data</b></td></tr>
+  </table>
+
+  <pre><code><span class="cmt"># Private (tailnet-only):</span>
+tailscale serve --bg http://localhost:5080
+
+<span class="cmt"># Public (field engineers, no per-phone setup):</span>
+tailscale funnel --bg http://localhost:5080
+
+<span class="cmt"># Check what's configured:</span>
+tailscale serve status</code></pre>
+
+  <div class="callout"><b>Verify the exact syntax</b> with <code>tailscale serve --help</code> / <code>tailscale funnel --help</code>
+  — this CLI has changed across versions. For <b>Funnel</b> you must also: enable <b>HTTPS certificates + MagicDNS</b>
+  in the Tailscale admin console, and give this machine the <b>funnel</b> node attribute in your ACLs. Funnel only
+  allows ports <b>443 / 8443 / 10000</b> and is aimed at modest traffic — fine to launch on; if 200 engineers hammer
+  it, move to a real domain + cert later.</div>
+
+  <p>Test from a phone browser (on mobile data if using Funnel):</p>
+  <pre><code>https://winserver.tailnet-abc.ts.net/health   <span class="cmt"># -> {"status":"ok"} with a valid padlock</span></code></pre>
+
+  <!-- APP ----------------------------------------------------------------->
+  <h2 id="app">7 · Point the mobile app at the server</h2>
+  <p>In <code>AppConfig.cs</code> (repo root), set the <b>Release</b> URL to your Tailscale address:</p>
+  <pre><code class="csharp"><span class="cmt">// #else  (Release / the APK you hand to engineers)</span>
+public const string ApiBaseUrl = "https://winserver.tailnet-abc.ts.net";</code></pre>
+  <ul class="check">
+    <li>It’s real HTTPS with a valid cert, so you need <b>no</b> Android cleartext exception for the cloud address.</li>
+    <li>Build the app in <b>Release</b> for Android → distribute the <code>.apk</code>. Engineers install, open, log in.</li>
+    <li>Using <b>Serve</b> (not Funnel)? Each phone must be signed into Tailscale first.</li>
+  </ul>
+
+  <!-- RELIABLE ------------------------------------------------------------>
+  <h2 id="reliable">8 · Keep it running (better than <code>dotnet run</code>)</h2>
+  <ul class="check">
+    <li>IIS auto-starts the site on boot and restarts the worker if it crashes — this is why IIS beats a foreground process.</li>
+    <li>App pool → <b>Advanced Settings</b>: set <b>Start Mode = AlwaysRunning</b> and <b>Idle Time-out (minutes) = 0</b> so the API never cold-stops.</li>
+    <li>Tailscale runs as a service; <code>--bg</code> serve/funnel config is restored automatically after a reboot.</li>
+    <li>Confirm both survive a reboot: restart the server, then hit the <code>/health</code> URL from your phone.</li>
+  </ul>
+
+  <!-- HARDEN -------------------------------------------------------------->
+  <h2 id="harden">9 · Before real traffic — hardening checklist</h2>
+  <div class="callout info">⚡ The <b>index</b> and <b>GPS retention</b> items below are done for you by
+  <code>server/deploy/gpssync-maintenance.sql</code> — run it once in SSMS against the <code>GpsSync</code> database.</div>
+  <ul class="check">
+    <li><b>Change the seeded admin</b> (<code>admin@local.test</code> / <code>Admin!23</code>) — log in and reset, or edit <code>SeedData.cs</code> and redeploy.</li>
+    <li><b>SQL Server backups</b> — a SQL Agent job / Maintenance Plan for the <code>GpsSync</code> DB, copied off the server.</li>
+    <li><b>GPS retention job</b> — delete <code>gps_pings</code> older than 30–90 days (≈1.15M rows/day at 200 engineers). Keeps the DB small and fast.</li>
+    <li><b>Index</b> — add <code>(UserId, CreatedAt DESC)</code> on <code>gps_pings</code> for the map/latest queries.</li>
+    <li><b>Rotate</b> the JWT key + SQL password if they were ever shared.</li>
+    <li><b>Real email</b> for password resets — set <code>Email:Mode=Smtp</code> + SMTP settings (otherwise reset codes go to the log).</li>
+  </ul>
+
+  <!-- TROUBLE ------------------------------------------------------------->
+  <h2 id="trouble">Troubleshooting</h2>
+  <table>
+    <tr><th>Symptom</th><th>Likely cause / fix</th></tr>
+    <tr><td><code>500.19</code> / <code>500.21</code>, or “Handler … has a bad module”</td><td>Hosting Bundle not installed, or installed before IIS. Install/repair it, then <code>net stop was /y &amp;&amp; net start w3svc</code>.</td></tr>
+    <tr><td>Site returns <code>HTTP 500</code> on every request</td><td>App failed to start — usually DB. Turn on the log (below), read <code>logs\stdout</code>, or check <b>Event Viewer → Windows Logs → Application</b>.</td></tr>
+    <tr><td>DB / login errors</td><td>Wrong <code>Server=</code> (named instance?), login lacks <code>dbcreator</code>, or mixed-mode auth off for a SQL login.</td></tr>
+    <tr><td>Phone can’t reach it</td><td>Funnel not enabled in admin console / missing node attribute; or you used <b>Serve</b> and the phone isn’t on the tailnet. Test <code>/health</code> in the phone browser.</td></tr>
+    <tr><td>Cert warning on the app</td><td>You pointed the app at <code>http://…</code> or a raw IP. Use the <code>https://…ts.net</code> name Tailscale issued.</td></tr>
+  </table>
+  <p>Enable the startup log temporarily — in <code>web.config</code>, on the <code>&lt;aspNetCore&gt;</code> element set
+  <code>stdoutLogEnabled="true"</code> and <code>stdoutLogFile=".\logs\stdout"</code>, create a <code>logs</code>
+  folder, retry, then read the newest file. Turn it back off afterwards.</p>
+
+  <!-- HOST GUIDE ---------------------------------------------------------->
+  <h2 id="hostguide">Host this guide itself via Tailscale</h2>
+  <p>This page is a single self-contained HTML file (<code>server\DEPLOY-IIS.html</code>). To open it from any device
+  on your tailnet, drop it in a folder and serve that folder on a spare HTTPS port (keep <b>443</b> for the API):</p>
+  <pre><code><span class="cmt"># serve the folder containing this file on https port 8443 (tailnet-only)</span>
+tailscale serve --bg --https=8443 C:\path\to\guide-folder
+
+<span class="cmt"># then open, from any tailnet device:</span>
+https://winserver.tailnet-abc.ts.net:8443/DEPLOY-IIS.html</code></pre>
+  <p class="sub">Or simplest of all: just double-click the file to open it in the server’s browser. Confirm the exact
+  <code>serve</code> flags with <code>tailscale serve --help</code>.</p>
+
+  <footer>
+    HitachiDispatch / GpsSync — IIS deployment guide. Generated for alvin@softworkz.net.
+    The API needs no code changes for IIS; everything above is setup + configuration.
+  </footer>
+</div>
+
+<script>
+(function(){
+  // copy buttons
+  try{
+    document.querySelectorAll('pre').forEach(function(pre){
+      var b=document.createElement('button');b.className='copy';b.type='button';b.textContent='Copy';
+      b.addEventListener('click',function(){
+        var t=pre.querySelector('code');var s=t?t.innerText:pre.innerText;
+        navigator.clipboard.writeText(s).then(function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy';},1200);})
+          .catch(function(){b.textContent='—';});
+      });
+      pre.appendChild(b);
+    });
+  }catch(e){}
+  // theme toggle (remembers per browser)
+  try{
+    var root=document.documentElement, btn=document.getElementById('themebtn');
+    var saved=null; try{saved=localStorage.getItem('deploytheme');}catch(e){}
+    if(saved){root.setAttribute('data-theme',saved);}
+    btn.addEventListener('click',function(){
+      var cur=root.getAttribute('data-theme');
+      var next = cur==='dark' ? 'light' : (cur==='light' ? 'dark' :
+                 (matchMedia('(prefers-color-scheme:dark)').matches ? 'light':'dark'));
+      root.setAttribute('data-theme',next);
+      try{localStorage.setItem('deploytheme',next);}catch(e){}
+    });
+  }catch(e){}
+})();
+</script>
+</body>
+</html>
