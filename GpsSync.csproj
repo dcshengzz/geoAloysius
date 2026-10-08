@@ -18,6 +18,8 @@
 		<ShinyVersion>3.2.0-beta-0022</ShinyVersion>
 		<UseInterpreter Condition="'$(Configuration)' == 'Debug'">False</UseInterpreter>
 		<EmbedAssembliesIntoApk Condition="'$(Configuration)' == 'Debug'">True</EmbedAssembliesIntoApk>
+		<!-- Sideloaded to staff phones (not Google Play), so Release must produce an installable .apk, not an .aab -->
+		<AndroidPackageFormat Condition="'$(Configuration)' == 'Release'">apk</AndroidPackageFormat>
 	</PropertyGroup>
 
 	<ItemGroup>
