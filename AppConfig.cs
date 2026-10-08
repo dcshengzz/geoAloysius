@@ -17,10 +17,8 @@ public static class AppConfig
     public const string ApiBaseUrl = "http://10.0.2.2:5080";
 #else
     // ---- CLOUD / PRODUCTION ----
-    // The API served over HTTPS by the Docker Compose stack (Caddy) on your server.
-    // MUST match SITE_ADDRESS from server/.env, with https:// and no trailing slash.
-    //   e.g. "https://api.yourcompany.com"  or  "https://34-87-120-9.sslip.io"
-    // >>> EDIT THIS to your deployed address before building the release APK. <<<
-    public const string ApiBaseUrl = "https://api.yourcompany.com";
+    // The API hosted in IIS on the office PC, published over HTTPS by Tailscale Funnel
+    // (`tailscale funnel --bg 5080`). https:// and no trailing slash.
+    public const string ApiBaseUrl = "https://kshi.tail6bc736.ts.net";
 #endif
 }

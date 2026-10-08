@@ -43,7 +43,9 @@ if (Test-Path $prodJson) {
 }
 
 # --- 1. Publish ----------------------------------------------------------------
-if ($PackagePath) {
+if ($PackagePath -and ((Resolve-Path $PackagePath).Path.TrimEnd('\') -eq [IO.Path]::GetFullPath($PublishPath).TrimEnd('\'))) {
+    Info "App already published to $PublishPath  (no copy needed)"
+} elseif ($PackagePath) {
     Info "Copying pre-built app $PackagePath  ->  $PublishPath"
     New-Item -ItemType Directory -Force -Path $PublishPath | Out-Null
     if (Get-WebAppPoolState -Name $AppPoolName -ErrorAction SilentlyContinue) { Stop-WebAppPool -Name $AppPoolName -ErrorAction SilentlyContinue; Start-Sleep 2 }  # release locked DLLs
@@ -106,8 +108,10 @@ if (-not (Test-Path "IIS:\Sites\$SiteName")) {
 Set-ItemProperty "IIS:\Sites\$SiteName" -Name serverAutoStart -Value $true
 
 # --- 6. Start ------------------------------------------------------------------
-Restart-WebAppPool -Name $AppPoolName -ErrorAction SilentlyContinue
-Start-Website       -Name $SiteName    -ErrorAction SilentlyContinue
+# Restart-WebAppPool fails on a stopped pool, so start it explicitly in that case.
+if ((Get-WebAppPoolState -Name $AppPoolName).Value -eq 'Stopped') { Start-WebAppPool -Name $AppPoolName }
+else                                                              { Restart-WebAppPool -Name $AppPoolName }
+if ((Get-WebsiteState -Name $SiteName).Value -ne 'Started') { Start-Website -Name $SiteName }
 Ok "Site started."
 
 Write-Host ""
