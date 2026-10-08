@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
-		<TargetFrameworks>net8.0-android</TargetFrameworks>
+		<TargetFrameworks>net10.0-android</TargetFrameworks>
 		<OutputType>Exe</OutputType>
 		<RootNamespace>GpsSync</RootNamespace>
 		<UseMaui>true</UseMaui>
@@ -42,8 +42,8 @@
 
 	<ItemGroup>
 		<PackageReference Include="sqlite-net-pcl" Version="1.9.141-beta" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="8.0.0" Condition="'$(Configuration)' == 'Debug'" />
-		<PackageReference Include="CommunityToolkit.Maui" Version="7.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.12" Condition="'$(Configuration)' == 'Debug'" />
+		<PackageReference Include="CommunityToolkit.Maui" Version="15.0.1" />
 		<PackageReference Include="Prism.DryIoc.Maui" Version="9.0.271-pre" />
 		<PackageReference Include="ReactiveUI.Fody" Version="19.5.1" />
 		<PackageReference Include="Shiny.Framework" Version="4.0.0-beta-0013" />
@@ -51,8 +51,7 @@
 		<PackageReference Include="Shiny.Locations" Version="$(ShinyVersion)" />
 		<PackageReference Include="Shiny.Notifications" Version="$(ShinyVersion)" />
 		<PackageReference Include="Shiny.Jobs" Version="$(ShinyVersion)" />
-		<PackageReference Include="Microsoft.Maui.Controls" Version="8.0.40" />
-		<PackageReference Include="Microsoft.Maui.Controls.Compatibility" Version="8.0.40" />
+		<PackageReference Include="Microsoft.Maui.Controls" Version="10.0.110" />
 		<PackageReference Include="Mapsui.Maui" Version="4.1.7" />
 	</ItemGroup>
 
