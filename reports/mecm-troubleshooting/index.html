@@ -134,107 +134,507 @@ html { scroll-behavior: smooth; }
 .note { color: var(--muted); font-size: 15px; }
 .err { font-family: var(--font-mono); font-size: 13px; font-weight: 500; color: var(--high); white-space: nowrap; }
 .err.ok { color: var(--low); }
-td code, td .err { font-size: 13px; }
-.logs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 14px 0; }
-@media (max-width: 600px) { .logs { grid-template-columns: minmax(0, 1fr); } }
-.logs div { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 10px 14px; min-width: 0; }
-.logs b { font-family: var(--font-mono); font-size: 14px; font-weight: 500; display: block; overflow-wrap: anywhere; }
-.logs span { color: var(--muted); font-size: 15px; }
-.routine { list-style: none; padding: 0; margin: 16px 0; display: grid; gap: 8px; }
-.routine li { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--sev); border-radius: 4px; padding: 10px 14px; margin: 0; }
-.routine .rank { font-family: var(--font-mono); color: var(--sev); }
+.fix { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 18px 20px 6px; margin: 22px 0; }
+.fix > h3 { margin-top: 0; font-size: 19px; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.fix > h3 .id { font-family: var(--font-mono); font-size: 13px; font-weight: 500; color: var(--accent); }
+.part { font-family: var(--font-mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 18px 0 6px; display: block; }
+.part.verify { color: var(--low); }
+.verify-box { border-left: 3px solid var(--low); background: var(--bg); padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 8px 0 16px; }
+.verify-box p:last-child, .verify-box ul:last-child { margin-bottom: 0; }
+.steps li > div > p { margin: 6px 0 0; }
+.steps li > div { min-width: 0; }
+.decide { margin: 14px 0; }
+.logline { font-family: var(--font-mono); font-size: 13px; background: var(--code-bg); padding: 2px 6px; border-radius: 3px; overflow-wrap: anywhere; }
+.placeholder { color: var(--crit); }
+.kpi { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 14px 0; }
+@media (max-width: 600px) { .kpi { grid-template-columns: minmax(0, 1fr); } }
+.kpi div { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; }
+.kpi b { font-family: var(--font-display); font-size: 24px; display: block; font-variant-numeric: tabular-nums; }
+.kpi span { color: var(--muted); font-size: 14px; }
 </style>
 </head>
 <body>
 
 <header class="top">
-  <div class="eyebrow">Infrastructure · MECM / SCCM</div>
+  <div class="eyebrow">Infrastructure · MECM / SCCM · Step-by-step</div>
   <h1>When MECM deployments don't reach every PC</h1>
-  <p class="lede">Two problems stop patching at less than 100%: devices that show as inactive, and software that fails to update. Fix both by grouping failures by cause, not by device.</p>
+  <p class="lede">A hands-on guide to the two problems that stop patching short of 100%: devices that show as inactive, and software that fails to install. Every fix includes the exact steps and a check that proves it worked.</p>
   <p class="note" style="margin-top:14px">Part of a series: <a href="http://100.66.66.66:8088/">Fleet Vulnerability Remediation Plan</a> · <a href="http://100.66.66.66:8089/">MECM Patching Guide</a></p>
+  <p class="note">Values in <code class="placeholder">&lt;ANGLE-BRACKETS&gt;</code> are placeholders. Replace them with your own server name, site code or version.</p>
 </header>
 
 <div class="wrap">
   <nav class="toc" aria-label="Contents">
     <p>Contents</p>
     <ol>
-      <li><a href="#inactive"><span>01</span> Inactive devices</a></li>
-      <li><a href="#failures"><span>02</span> Failed installs</a></li>
-      <li><a href="#logs"><span>03</span> Client log files</a></li>
-      <li><a href="#routine"><span>04</span> Weekly routine</a></li>
+      <li><a href="#tools"><span>00</span> Tools you need</a></li>
+      <li><a href="#find-inactive"><span>01</span> Find inactive PCs</a></li>
+      <li><a href="#triage"><span>02</span> Sort them by cause</a></li>
+      <li><a href="#fix-inactive"><span>03</span> Fix each cause</a></li>
+      <li><a href="#find-failed"><span>04</span> Find failed installs</a></li>
+      <li><a href="#fix-failed"><span>05</span> Fix by error code</a></li>
+      <li><a href="#routine"><span>06</span> Weekly routine</a></li>
     </ol>
   </nav>
 
   <main>
-    <section id="inactive">
-      <h2><span class="n">01</span>Inactive devices</h2>
-      <div class="callout"><strong>A deployment isn't lost when a device is inactive.</strong> Once the PC comes back online and checks in, it picks up the deployment and installs it, as long as the deployment hasn't expired. Set <strong>deadlines but no expiry date</strong>, and late devices catch up on their own.</div>
-      <p>Then sort the inactive devices into these groups:</p>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Cause</th><th>How to tell</th><th>Fix</th></tr></thead>
-          <tbody>
-            <tr><td><strong>PC is switched off</strong> or rarely used</td><td>Last logon is old in AD too</td><td>Wake-on-LAN, or a power policy that keeps PCs on overnight on patch days. If a PC is never used, remove it.</td></tr>
-            <tr><td><strong>Laptop off the office network</strong> (home, no VPN)</td><td>Comes back to active when the user visits the office</td><td>A <strong>Cloud Management Gateway (CMG)</strong> so clients reach MECM over the internet, or co-management with Intune</td></tr>
-            <tr><td><strong>Broken MECM client</strong></td><td>PC responds to ping but has no MECM heartbeat</td><td>Repair or reinstall the client (see below)</td></tr>
-            <tr><td><strong>Stale record</strong> (reimaged, renamed or scrapped)</td><td>Duplicate names, or the device no longer exists</td><td>Delete the old record. Turn on the <em>Delete Inactive Client Discovery Data</em> and <em>Delete Aged Discovery Data</em> maintenance tasks.</td></tr>
-            <tr><td><strong>Boundary problem</strong></td><td>Client is active but can't download content</td><td>Put the PC's subnet or IP range in a boundary group that has a distribution point</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <h3>Repair broken clients at scale</h3>
+    <!-- 00 -->
+    <section id="tools">
+      <h2><span class="n">00</span>Tools you need</h2>
       <ul>
-        <li>Use a GPO <strong>startup script</strong> that checks the <code>CcmExec</code> service on every boot and reinstalls the client if it's broken. The free community <em>ConfigMgr Client Health</em> script by Anders Rødland does this and is widely used.</li>
-        <li>Or use <strong>Client Push</strong> on the device collection with <em>Always install, even if already installed</em>.</li>
-        <li>Track the problem with a collection called <code>Clients - Inactive</code>, and check it weekly:</li>
+        <li><strong>MECM console</strong>, with rights to create collections, scripts and deployments.</li>
+        <li><strong>CMTrace</strong>, the MECM log viewer. It highlights errors in red. Every MECM client has it at <code>C:\Windows\CCM\CMTrace.exe</code>. Copy it to your admin PC.</li>
+        <li><strong>Windows PowerShell 5.1</strong> on your admin PC, run as an account that is a local admin on the PCs. The scripts below use commands that only work in 5.1, not PowerShell 7.</li>
+        <li><strong>Active Directory module</strong> for PowerShell, from RSAT, for the <code>Get-ADComputer</code> command.</li>
+        <li>Access to <code>\\&lt;PC&gt;\c$</code> on the PCs, so you can read their logs remotely.</li>
       </ul>
-      <span class="path">Monitoring → Client Status</span>
+      <p>Read a PC's log without walking to it: open CMTrace → <strong>File → Open</strong> → type <code>\\&lt;PC-NAME&gt;\c$\Windows\CCM\Logs\AppEnforce.log</code>.</p>
     </section>
 
-    <section id="failures">
-      <h2><span class="n">02</span>Software that fails to update</h2>
-      <p>Open the Error tab of the deployment. It groups failed PCs by <strong>error code</strong>. Fix each code once, and it fixes every PC with that code.</p>
-      <span class="path">Monitoring → Deployments → [deployment] → Error tab</span>
-      <div class="table-wrap">
+    <!-- 01 -->
+    <section id="find-inactive">
+      <h2><span class="n">01</span>Find every inactive PC in one list</h2>
+      <p>Create a collection that always contains the PCs MECM marks as inactive, so you never have to search for them.</p>
+      <ol class="steps">
+        <li><div>Go to <span class="path">Assets and Compliance → Device Collections</span> → <strong>Create Device Collection</strong>.</div></li>
+        <li><div>Name: <code>Clients - Inactive</code>. Limiting collection: <code>All Systems</code>. Click Next.</div></li>
+        <li><div><strong>Add Rule → Query Rule</strong>. Name it <code>Inactive</code> → <strong>Edit Query Statement → Show Query Language</strong> → paste the query below → OK.</div></li>
+        <li><div>Tick <strong>Schedule a full update on this collection</strong> → set it to daily → Finish.</div></li>
+      </ol>
+      <div class="code">
+        <div class="label">WQL · devices whose MECM client is inactive</div>
+        <pre id="q-inactive">select SMS_R_System.ResourceID, SMS_R_System.Name
+from SMS_R_System
+inner join SMS_G_System_CH_ClientSummary
+  on SMS_G_System_CH_ClientSummary.ResourceId = SMS_R_System.ResourceId
+where SMS_G_System_CH_ClientSummary.ClientActiveStatus = 0</pre>
+        <button class="copy" type="button" data-target="q-inactive">Copy</button>
+      </div>
+      <p>Create a second collection, <code>Clients - Missing</code>, the same way for PCs that have no MECM client at all:</p>
+      <div class="code">
+        <div class="label">WQL · devices with no MECM client</div>
+        <pre id="q-noclient">select SMS_R_System.ResourceID, SMS_R_System.Name
+from SMS_R_System
+where SMS_R_System.Client is null or SMS_R_System.Client = 0</pre>
+        <button class="copy" type="button" data-target="q-noclient">Copy</button>
+      </div>
+      <p>Then add useful columns. Open the collection, right-click the column header, and tick <strong>Client Activity</strong>, <strong>Client Check Result</strong> and <strong>Last Policy Request</strong>.</p>
+      <span class="part verify">✓ Check it worked</span>
+      <div class="verify-box">
+        <p>The collection shows a member count. Click it and you see the PC names, with Client Activity = <em>Inactive</em>. Write down the number; it's your starting point. Copy the names into Notepad: select all rows → <kbd>Ctrl</kbd>+<kbd>C</kbd> → paste. Save them as <code>C:\Temp\inactive.txt</code>, one name per line.</p>
+      </div>
+    </section>
+
+    <!-- 02 -->
+    <section id="triage">
+      <h2><span class="n">02</span>Sort inactive PCs by cause, automatically</h2>
+      <p>Run this from your admin PC. It checks every PC in the list: does it answer on the network, when did it last log on to the domain, and is the MECM client service running?</p>
+      <div class="code">
+        <div class="label">PowerShell 5.1 · triage inactive PCs</div>
+        <pre id="ps-triage">Import-Module ActiveDirectory
+$pcs = Get-Content C:\Temp\inactive.txt | Where-Object { $_.Trim() }
+
+$result = foreach ($pc in $pcs) {
+    $pc = $pc.Trim()
+    $ad = Get-ADComputer $pc -Properties LastLogonDate, Enabled -ErrorAction SilentlyContinue
+    $online = Test-Connection $pc -Count 1 -Quiet
+    $svc = 'Offline'
+    if ($online) {
+        try   { $svc = (Get-Service -ComputerName $pc -Name CcmExec -ErrorAction Stop).Status }
+        catch { $svc = 'NotFound/NoAccess' }
+    }
+    [pscustomobject]@{
+        Name        = $pc
+        InAD        = [bool]$ad
+        ADEnabled   = $ad.Enabled
+        LastLogonAD = $ad.LastLogonDate
+        Online      = $online
+        CcmExec     = $svc
+    }
+}
+
+$result | Sort-Object Online, LastLogonAD | Format-Table -AutoSize
+$result | Export-Csv C:\Temp\inactive-triage.csv -NoTypeInformation</pre>
+        <button class="copy" type="button" data-target="ps-triage">Copy</button>
+      </div>
+      <p class="note">If your firewall blocks ping, <code>Online</code> shows False for PCs that are actually on. In that case, test with <code>Test-NetConnection &lt;PC&gt; -Port 445</code> instead.</p>
+      <p>Open <code>C:\Temp\inactive-triage.csv</code> in Excel and match each row to a cause:</p>
+      <div class="table-wrap decide">
         <table>
-          <thead><tr><th>Error / symptom</th><th>Usual cause</th><th>Fix</th></tr></thead>
+          <thead><tr><th>What the row shows</th><th>Cause</th><th>Go to</th></tr></thead>
           <tbody>
-            <tr><td><span class="err">1618</span> / <span class="err">1603</span></td><td>App is open (Chrome, Teams, Java, Adobe), or another install is running</td><td>Wrap the install in <strong>PSADT</strong> (PowerShell App Deployment Toolkit). It closes the app or asks the user to, then installs. Or deploy outside working hours.</td></tr>
-            <tr><td>Install says success, scanner still flags it</td><td><strong>Per-user install</strong> in the user's profile (Chrome, Zoom, Teams). MECM runs as SYSTEM and can't see it.</td><td>Uninstall the per-user copies with a script, then deploy the machine-wide version</td></tr>
-            <tr><td><span class="err">0x87D00324</span></td><td>Wrong <strong>detection method</strong>: app not detected after install</td><td>Detect the new version by file version or MSI product code, not just "file exists"</td></tr>
-            <tr><td>Old version stays installed</td><td>Supersedence uninstall fails because the vendor's uninstall command is different</td><td>Add a custom uninstall script, or clean up with Run Scripts</td></tr>
-            <tr><td><span class="err">0x87D00607</span></td><td>Content isn't on the distribution point, or a boundary problem</td><td>Distribute content to all DPs and check boundary groups</td></tr>
-            <tr><td><span class="err ok">3010</span></td><td>Needs a restart. This is not an error.</td><td>Set a restart deadline in client settings</td></tr>
-            <tr><td><span class="err">0x8024xxxx</span></td><td>Windows Update: pending restart, low disk space, or broken update components</td><td>Restart, free disk space, run <code>DISM /Online /Cleanup-Image /RestoreHealth</code> through Run Scripts</td></tr>
+            <tr><td><code>InAD = False</code>, or <code>ADEnabled = False</code>, or LastLogonAD older than 90 days</td><td>Stale record: PC scrapped, renamed or reimaged</td><td><a href="#fix-stale">Fix A</a></td></tr>
+            <tr><td><code>Online = False</code>, LastLogonAD recent</td><td>PC is off, or a laptop away from the office</td><td><a href="#fix-offline">Fix B</a></td></tr>
+            <tr><td><code>Online = True</code>, CcmExec = <code>NotFound/NoAccess</code> or <code>Stopped</code></td><td>MECM client broken or missing</td><td><a href="#fix-client">Fix C</a></td></tr>
+            <tr><td><code>Online = True</code>, CcmExec = <code>Running</code></td><td>Client runs but can't reach the management point</td><td><a href="#fix-comm">Fix D</a></td></tr>
           </tbody>
         </table>
       </div>
-      <p class="note">The biggest wins are usually PSADT, for apps that are open during install, and cleaning up per-user installs.</p>
     </section>
 
-    <section id="logs">
-      <h2><span class="n">03</span>Client log files</h2>
-      <p>To see the real reason on a failing PC, open these files in <code>C:\Windows\CCM\Logs</code>:</p>
-      <div class="logs">
-        <div><b>AppEnforce.log</b><span>Install command and exit code</span></div>
-        <div><b>AppDiscovery.log</b><span>Detection results</span></div>
-        <div><b>ContentTransferManager.log · CAS.log</b><span>Download problems</span></div>
-        <div><b>WUAHandler.log · UpdatesDeployment.log</b><span>Windows Update problems</span></div>
+    <!-- 03 -->
+    <section id="fix-inactive">
+      <h2><span class="n">03</span>Fix each cause</h2>
+
+      <div class="fix" id="fix-stale">
+        <h3><span class="id">FIX A</span>Stale records (PC no longer exists)</h3>
+        <span class="part">Do this</span>
+        <ol class="steps">
+          <li><div>Confirm with the asset list or the user that the PC is really gone. If it is, delete it in AD.</div></li>
+          <li><div>In MECM, select the device in <code>Clients - Inactive</code> → right-click → <strong>Delete</strong>.</div></li>
+          <li><div>Stop it happening again. Go to <span class="path">Administration → Site Configuration → Sites</span> → select your site → <strong>Site Maintenance</strong> (ribbon). Enable <strong>Delete Inactive Client Discovery Data</strong> (for example 90 days) and check that <strong>Delete Aged Discovery Data</strong> is enabled.</div></li>
+          <li><div>Go to <span class="path">Administration → Hierarchy Configuration → Discovery Methods → Active Directory System Discovery → Properties → Options</span>. Tick <strong>Only discover computers that have logged on to a domain in a given period of time</strong> and set it to 90 days. This stops old AD accounts from creating devices again.</div></li>
+        </ol>
+        <span class="part verify">✓ Check it worked</span>
+        <div class="verify-box"><p>After the next collection update, the member count of <code>Clients - Inactive</code> drops by the number of devices you deleted. They don't come back after the next discovery cycle.</p></div>
+      </div>
+
+      <div class="fix" id="fix-offline">
+        <h3><span class="id">FIX B</span>PC is switched off, or the laptop is off-network</h3>
+        <span class="part">Do this</span>
+        <ol class="steps">
+          <li><div><strong>Office PCs that are switched off: use Wake-on-LAN.</strong>
+            <p>Turn on Wake-on-LAN in the PC's BIOS. Most vendors (Dell, HP, Lenovo) can also do this with their own tools.</p>
+            <p>Go to <span class="path">Administration → Client Settings → [your settings] → Power Management</span> → set <strong>Allow network wake-up</strong> = Enable.</p>
+            <p>To wake a PC: right-click the device or collection → <strong>Client Notification → Wake Up</strong>. This needs at least one other MECM client that is switched on in the same subnet.</p></div></li>
+          <li><div><strong>Deployments wait for the PC.</strong> In every deployment, set a <strong>deadline</strong> and leave <strong>expiry</strong> empty. When the PC comes back, it installs automatically.</div></li>
+          <li><div><strong>Laptops that are never in the office:</strong> ask users to connect to VPN once a week as a short-term fix. The long-term fix is a <strong>Cloud Management Gateway (CMG)</strong>, which lets clients reach MECM over the internet. It needs an Azure subscription and a certificate, so plan it as a separate project.</div></li>
+        </ol>
+        <span class="part verify">✓ Check it worked</span>
+        <div class="verify-box"><p>Send Wake Up to one test PC. Within a few minutes it answers <code>Test-Connection &lt;PC&gt;</code>. Within an hour or so, its <strong>Last Policy Request</strong> time updates in the console. Client Activity changes to Active at the next client activity evaluation, which can take up to a day.</p></div>
+      </div>
+
+      <div class="fix" id="fix-client">
+        <h3><span class="id">FIX C</span>MECM client broken or missing</h3>
+        <span class="part">Option 1: reinstall from the console (many PCs at once)</span>
+        <ol class="steps">
+          <li><div>Select the PCs (or a whole collection) → right-click → <strong>Install Client</strong>.</div></li>
+          <li><div>Tick <strong>Always install the client software</strong> and <strong>Uninstall existing Configuration Manager client before the client is installed</strong>. Choose your site → Finish.</div></li>
+          <li><div>This uses your Client Push account. That account must be a local admin on the PCs, and the PC firewall must allow File and Printer Sharing and WMI.</div></li>
+        </ol>
+        <span class="part">Option 2: reinstall on one PC by hand (when push fails)</span>
+        <p>Run on the PC as admin:</p>
+        <div class="code">
+          <div class="label">cmd · remove and reinstall the client</div>
+          <pre id="cmd-reinstall">C:\Windows\ccmsetup\ccmsetup.exe /uninstall
+:: wait until ccmsetup.exe disappears from Task Manager, then:
+\\&lt;SITE-SERVER&gt;\SMS_&lt;SITECODE&gt;\Client\ccmsetup.exe /mp:&lt;MP-FQDN&gt; SMSSITECODE=&lt;SITECODE&gt;</pre>
+          <button class="copy" type="button" data-target="cmd-reinstall">Copy</button>
+        </div>
+        <p>If the reinstall fails with WMI errors, first run <code>winmgmt /verifyrepository</code>. If it reports the repository is inconsistent, run <code>winmgmt /salvagerepository</code> and reinstall again.</p>
+        <span class="part">Option 3: repair automatically on every boot</span>
+        <p>Use the free community <strong>ConfigMgr Client Health</strong> script by Anders Rødland. Put it on a file share, edit its <code>config.xml</code> with your site code and client share, and run it with a GPO computer startup script or a scheduled task. It checks the client, WMI and services, and reinstalls when needed. Follow its own README for setup.</p>
+        <span class="part verify">✓ Check it worked</span>
+        <div class="verify-box">
+          <ul>
+            <li>On the PC, <code>C:\Windows\ccmsetup\Logs\ccmsetup.log</code> ends with <span class="logline">CcmSetup is exiting with return code 0</span>. For console push, the site server's <code>ccm.log</code> shows the push result for that PC.</li>
+            <li>On the PC, open <strong>Control Panel → Configuration Manager → Actions</strong> tab. A healthy client lists about 8–10 actions. If it shows only 2, it isn't receiving policy yet. Wait 15 minutes, or run the command below.</li>
+            <li>Run the PowerShell below on the PC. It should print your site code and management point.</li>
+          </ul>
+          <div class="code">
+            <div class="label">PowerShell · confirm the client is assigned and pull policy now</div>
+            <pre id="ps-clientcheck">Get-Service CcmExec
+Get-CimInstance -Namespace root\ccm -ClassName SMS_Authority | Select-Object Name, CurrentManagementPoint
+# Machine Policy Retrieval &amp; Evaluation Cycle
+Invoke-WmiMethod -Namespace root\ccm -Class SMS_Client -Name TriggerSchedule -ArgumentList '{00000000-0000-0000-0000-000000000021}'</pre>
+            <button class="copy" type="button" data-target="ps-clientcheck">Copy</button>
+          </div>
+          <p>In the console, <strong>Last Policy Request</strong> for that PC updates within the hour. The PC leaves <code>Clients - Inactive</code> after the next client activity evaluation.</p>
+        </div>
+      </div>
+
+      <div class="fix" id="fix-comm">
+        <h3><span class="id">FIX D</span>Client runs but can't reach MECM (communication or boundaries)</h3>
+        <span class="part">Do this</span>
+        <ol class="steps">
+          <li><div>Open these logs on the PC with CMTrace and look for red lines:
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Log</th><th>Healthy</th><th>Problem looks like</th></tr></thead>
+                <tbody>
+                  <tr><td><code>ClientIDManagerStartup.log</code></td><td>Client is registered</td><td>Registration pending / failed (certificate or duplicate ID)</td></tr>
+                  <tr><td><code>LocationServices.log</code></td><td>Lists your management point and site</td><td>No MP found / no site assignment</td></tr>
+                  <tr><td><code>CcmMessaging.log</code></td><td>Successful posts to the MP</td><td>Repeated <span class="logline">Post to http://… failed</span> errors</td></tr>
+                </tbody>
+              </table>
+            </div></div></li>
+          <li><div>If the MP can't be reached, test from the PC: <code>Test-NetConnection &lt;MP-FQDN&gt; -Port 80</code> (use 443 for HTTPS). If it fails, the problem is the firewall, VPN or DNS, not MECM.</div></li>
+          <li><div>If logs mention boundaries or no content location, check the PC's IP. Go to <span class="path">Administration → Hierarchy Configuration → Boundaries</span>. Make sure the PC's subnet or IP range is in a boundary. In <strong>Boundary Groups</strong>, make sure that boundary is in a group that has a distribution point on its <strong>References</strong> tab.</div></li>
+          <li><div>If the client shows a duplicate ID (common after cloning PCs without sysprep), reinstall the client with <a href="#fix-client">Fix C</a>, Option 2.</div></li>
+        </ol>
+        <span class="part verify">✓ Check it worked</span>
+        <div class="verify-box"><p><code>CcmMessaging.log</code> shows successful posts with no new errors. Run the policy command from Fix C, and <strong>Last Policy Request</strong> updates in the console.</p></div>
       </div>
     </section>
 
+    <!-- 04 -->
+    <section id="find-failed">
+      <h2><span class="n">04</span>Find failed installs and their real error</h2>
+      <ol class="steps">
+        <li><div>Go to <span class="path">Monitoring → Deployments</span> → select the deployment → <strong>View Status</strong> (bottom pane).</div></li>
+        <li><div>Click the <strong>Error</strong> tab. Failures are grouped by error code. Expand a code to see the PCs. Fix the code with the most PCs first.</div></li>
+        <li><div>Pick one PC from that group and open its log remotely in CMTrace:
+          <p>Applications: <code>\\&lt;PC&gt;\c$\Windows\CCM\Logs\AppEnforce.log</code></p>
+          <p>Windows updates: <code>\\&lt;PC&gt;\c$\Windows\CCM\Logs\UpdatesDeployment.log</code> and <code>WUAHandler.log</code></p></div></li>
+        <li><div>In <code>AppEnforce.log</code>, find these lines for your app:
+          <p><span class="logline">Executing Command line: "msiexec.exe" /i …</span> shows exactly what MECM ran.</p>
+          <p><span class="logline">Process 4321 terminated with exitcode: 1603</span> shows the installer's real result.</p></div></li>
+      </ol>
+      <p>Then go to the matching fix below.</p>
+    </section>
+
+    <!-- 05 -->
+    <section id="fix-failed">
+      <h2><span class="n">05</span>Fix by error code</h2>
+
+      <div class="fix" id="fix-1618">
+        <h3><span class="id">FIX E</span><span class="err">1618</span> / <span class="err">1603</span> App is in use, or another install is running</h3>
+        <p>1618 means another install was running. MECM retries this automatically, so it usually clears by itself. 1603 is a general failure; very often the app was open (Chrome, Teams, Java, Adobe), so files were locked.</p>
+        <span class="part">Do this: a wrapper script that closes the app safely</span>
+        <ol class="steps">
+          <li><div>Put the MSI and the script below in the application's content folder. Name the script <code>install.ps1</code>.</div></li>
+          <li><div>In the application, open <strong>Deployment Types → Properties → Programs</strong>. Set the install program to:
+            <p><code>powershell.exe -ExecutionPolicy Bypass -NoProfile -File install.ps1</code></p></div></li>
+          <li><div>On the <strong>User Experience</strong> tab, set Installation behavior = <strong>Install for system</strong>, and Logon requirement = <strong>Whether or not a user is logged on</strong>.</div></li>
+          <li><div>Right-click the application → <strong>Update Content</strong>, so the distribution points get the new script.</div></li>
+        </ol>
+        <div class="code">
+          <div class="label">PowerShell · install.ps1 (Chrome example)</div>
+          <pre id="ps-wrapper">$process = 'chrome'
+$msi     = Join-Path $PSScriptRoot 'googlechromestandaloneenterprise64.msi'
+$log     = "$env:windir\Temp\chrome-install.log"
+
+# If a user is logged on and the app is open, close it (they lose open tabs, so prefer out-of-hours deadlines)
+Get-Process $process -ErrorAction SilentlyContinue | Stop-Process -Force
+Start-Sleep -Seconds 3
+
+$p = Start-Process msiexec.exe -ArgumentList "/i `"$msi`" /qn /norestart /l*v `"$log`"" -Wait -PassThru
+exit $p.ExitCode</pre>
+          <button class="copy" type="button" data-target="ps-wrapper">Copy</button>
+        </div>
+        <p class="note">This closes the app without asking. For a friendlier version that warns users and gives a countdown, use <strong>PSADT</strong> (PowerShell App Deployment Toolkit, free). Its <code>Show-ADTInstallationWelcome -CloseProcesses</code> command shows a prompt before closing apps. Check the PSADT documentation for your version, because commands changed between v3 and v4. Also set deployment deadlines outside working hours, so most apps are already closed.</p>
+        <p>If you still get 1603, open the MSI log <code>C:\Windows\Temp\chrome-install.log</code> on the PC and search for <span class="logline">Return value 3</span>. The lines just above it show the real reason.</p>
+        <span class="part verify">✓ Check it worked</span>
+        <div class="verify-box">
+          <ul>
+            <li>On a test PC, open Software Center (or wait for the deadline). <code>AppEnforce.log</code> shows <span class="logline">Process … terminated with exitcode: 0</span>.</li>
+            <li>Check the installed version on the PC:</li>
+          </ul>
+          <div class="code">
+            <div class="label">PowerShell · confirm installed version</div>
+            <pre id="ps-ver">(Get-Item "C:\Program Files\Google\Chrome\Application\chrome.exe").VersionInfo.ProductVersion</pre>
+            <button class="copy" type="button" data-target="ps-ver">Copy</button>
+          </div>
+          <p>In the deployment status, that PC moves from Error to <strong>Success</strong>. After the fix is deployed widely, the 1603 group on the Error tab shrinks.</p>
+        </div>
+      </div>
+
+      <div class="fix" id="fix-peruser">
+        <h3><span class="id">FIX F</span>MECM says success, but the scanner still flags the app (per-user installs)</h3>
+        <p>Chrome, Zoom and Teams can install inside each user's profile (<code>C:\Users\name\AppData</code>). MECM installs machine-wide, so the old per-user copy stays behind and keeps getting flagged.</p>
+        <span class="part">Step 1: find the per-user copies (Run Scripts)</span>
+        <ol class="steps">
+          <li><div>Go to <span class="path">Software Library → Scripts → Create Script</span>. Name it <code>Find per-user apps</code> and paste the script below. Finish.</div></li>
+          <li><div>A second admin approves it: right-click → <strong>Approve/Deny</strong>. If you're the only admin, you can allow self-approval: <span class="path">Administration → Site Configuration → Sites → Hierarchy Settings → General</span>, untick <strong>Script authors require additional script approver</strong>.</div></li>
+          <li><div>Right-click a collection → <strong>Run Script</strong> → choose the script.</div></li>
+          <li><div>See the results in <span class="path">Monitoring → Script Status</span> → select the run → <strong>Show Status</strong>. The output column shows what each PC returned.</div></li>
+        </ol>
+        <div class="code">
+          <div class="label">PowerShell · Run Script: list per-user installs</div>
+          <pre id="ps-findperuser">$paths = @(
+  'AppData\Local\Google\Chrome\Application\chrome.exe',
+  'AppData\Roaming\Zoom\bin\Zoom.exe',
+  'AppData\Local\Microsoft\Teams\current\Teams.exe'
+)
+$found = foreach ($u in Get-ChildItem C:\Users -Directory) {
+  foreach ($p in $paths) {
+    $f = Join-Path $u.FullName $p
+    if (Test-Path $f) { "$($u.Name): $(Split-Path $p -Leaf) $((Get-Item $f).VersionInfo.ProductVersion)" }
+  }
+}
+if ($found) { $found -join '; ' } else { 'None' }</pre>
+          <button class="copy" type="button" data-target="ps-findperuser">Copy</button>
+        </div>
+        <span class="part">Step 2: remove them (runs as each user)</span>
+        <p>A per-user install must be removed while that user is logged on, because it lives in their profile. Create an MECM Application with the script below, and on the <strong>User Experience</strong> tab set Installation behavior = <strong>Install for user</strong>. Deploy it as Required to a <em>user</em> collection, such as All Users.</p>
+        <div class="code">
+          <div class="label">PowerShell · remove per-user Chrome (runs as the user)</div>
+          <pre id="ps-rmchrome">$setup = Get-ChildItem "$env:LOCALAPPDATA\Google\Chrome\Application\*\Installer\setup.exe" -ErrorAction SilentlyContinue |
+         Select-Object -First 1
+if ($setup) {
+  Get-Process chrome -ErrorAction SilentlyContinue | Stop-Process -Force
+  Start-Process $setup.FullName -ArgumentList '--uninstall --force-uninstall' -Wait
+}
+exit 0</pre>
+          <button class="copy" type="button" data-target="ps-rmchrome">Copy</button>
+        </div>
+        <p class="note">For Zoom, the vendor provides its own clean-up tool (CleanZoom). For other apps, check the vendor's documentation for the per-user uninstall command. To stop users installing into their profile again, block it with AppLocker rules for <code>%LOCALAPPDATA%</code>.</p>
+        <span class="part verify">✓ Check it worked</span>
+        <div class="verify-box"><p>Run the <code>Find per-user apps</code> script again on the same collection. The PCs you fixed now return <code>None</code>. On the next vulnerability scan, the findings for those apps disappear from those PCs.</p></div>
+      </div>
+
+      <div class="fix" id="fix-detect">
+        <h3><span class="id">FIX G</span><span class="err">0x87D00324</span> App installed, but MECM can't detect it</h3>
+        <p>The install worked, but the application's <strong>detection method</strong> looks for the wrong thing, so MECM reports a failure (or keeps reinstalling).</p>
+        <span class="part">Do this</span>
+        <ol class="steps">
+          <li><div>On a PC where the new version is installed, find the real version number: right-click the program's .exe → <strong>Properties → Details → File version</strong>. Or use the version command from Fix E.</div></li>
+          <li><div>In MECM, open the application → <strong>Deployment Types</strong> tab → the deployment type → <strong>Properties → Detection Method → Add Clause</strong> (or edit the existing one).</div></li>
+          <li><div>Set:
+            <div class="table-wrap">
+              <table>
+                <tbody>
+                  <tr><td>Setting Type</td><td>File System</td></tr>
+                  <tr><td>Type</td><td>File</td></tr>
+                  <tr><td>Path</td><td><code>%ProgramFiles%\Google\Chrome\Application</code></td></tr>
+                  <tr><td>File or folder name</td><td><code>chrome.exe</code></td></tr>
+                  <tr><td>32-bit app on 64-bit systems</td><td>Untick (Chrome installs to 64-bit Program Files)</td></tr>
+                  <tr><td>Rule</td><td><strong>The file system setting must satisfy the following rule</strong></td></tr>
+                  <tr><td>Property / Operator / Value</td><td>Version · Greater than or equal to · <code class="placeholder">&lt;new version&gt;</code></td></tr>
+                </tbody>
+              </table>
+            </div></div></li>
+          <li><div>For MSI apps that keep the same product code for each version, you can use <strong>Windows Installer</strong> as the setting type, with the product code. Use the file version if the product code changes with every release.</div></li>
+        </ol>
+        <span class="part verify">✓ Check it worked</span>
+        <div class="verify-box"><p>On the test PC, run <strong>Control Panel → Configuration Manager → Actions → Application Deployment Evaluation Cycle → Run Now</strong>. In <code>AppDiscovery.log</code>, the app now shows <span class="logline">+++ Discovered application</span> instead of <span class="logline">+++ Application not discovered</span>. Its deployment status changes to Success.</p></div>
+      </div>
+
+      <div class="fix" id="fix-uninstall">
+        <h3><span class="id">FIX H</span>Old version stays installed next to the new one</h3>
+        <p>Supersedence uninstalls the old version using the old application's <strong>uninstall program</strong>. If that command is wrong or missing, the old version stays and keeps getting flagged. Java is the classic example.</p>
+        <span class="part">Step 1: find the real uninstall command</span>
+        <p>Run on a PC that has the old version:</p>
+        <div class="code">
+          <div class="label">PowerShell · list installed versions and their uninstall codes</div>
+          <pre id="ps-listuninst">$keys = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
+        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
+Get-ItemProperty $keys -ErrorAction SilentlyContinue |
+  Where-Object DisplayName -like '*Java*' |
+  Select-Object DisplayName, DisplayVersion, PSChildName, UninstallString</pre>
+          <button class="copy" type="button" data-target="ps-listuninst">Copy</button>
+        </div>
+        <p>For MSI installs, <code>PSChildName</code> is the product code, like <code>{26A24AE4-…}</code>. The uninstall command is <code>msiexec /x {PRODUCT-CODE} /qn /norestart</code>. Put this in the <em>old</em> application's <strong>Deployment Type → Programs → Uninstall program</strong>.</p>
+        <span class="part">Step 2: clean up existing PCs in one go (Run Scripts)</span>
+        <div class="code">
+          <div class="label">PowerShell · Run Script: remove Java 8 builds older than a version</div>
+          <pre id="ps-rmjava">$keep = [version]'8.0.4310'   # set to your approved build (DisplayVersion format)
+$keys = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
+        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
+$old = Get-ItemProperty $keys -ErrorAction SilentlyContinue | Where-Object {
+  $_.DisplayName -like 'Java 8 Update*' -and $_.PSChildName -like '{*}' -and [version]$_.DisplayVersion -lt $keep
+}
+if (-not $old) { 'Nothing to remove'; exit 0 }
+foreach ($a in $old) {
+  $p = Start-Process msiexec.exe -ArgumentList "/x $($a.PSChildName) /qn /norestart" -Wait -PassThru
+  "$($a.DisplayName) $($a.DisplayVersion): exit $($p.ExitCode)"
+}</pre>
+          <button class="copy" type="button" data-target="ps-rmjava">Copy</button>
+        </div>
+        <p class="note">Run the list command first to see the <code>DisplayVersion</code> format on your PCs, then set <code>$keep</code>. Test on the pilot collection first.</p>
+        <span class="part verify">✓ Check it worked</span>
+        <div class="verify-box"><p>In <span class="path">Monitoring → Script Status</span>, each PC shows <code>exit 0</code> per removed version (<code>3010</code> means removed, restart needed). Run the list command again on a PC: only the approved version remains.</p></div>
+      </div>
+
+      <div class="fix" id="fix-content">
+        <h3><span class="id">FIX I</span><span class="err">0x87D00607</span> Content not found</h3>
+        <span class="part">Do this</span>
+        <ol class="steps">
+          <li><div>Go to <span class="path">Monitoring → Distribution Status → Content Status</span> → find the application. Every distribution point should be green.</div></li>
+          <li><div>If one isn't, right-click the application in Software Library → <strong>Distribute Content</strong> → add the missing distribution points or groups. If it shows an error, use <strong>Redistribute</strong>.</div></li>
+          <li><div>If content is green everywhere, the PC's network isn't in a boundary group linked to a DP. Fix that as in <a href="#fix-comm">Fix D</a>, step 3.</div></li>
+        </ol>
+        <span class="part verify">✓ Check it worked</span>
+        <div class="verify-box"><p>Retry the install on a failed PC. Its <code>CAS.log</code> and <code>ContentTransferManager.log</code> show the download completing, then <code>AppEnforce.log</code> shows the install running.</p></div>
+      </div>
+
+      <div class="fix" id="fix-3010">
+        <h3><span class="id">FIX J</span><span class="err ok">3010</span> Restart required</h3>
+        <p>This is not a failure. The install worked and the PC needs a restart to finish.</p>
+        <span class="part">Do this</span>
+        <ol class="steps">
+          <li><div>Go to <span class="path">Administration → Client Settings → [your settings] → Computer Restart</span>. Set <strong>Configuration Manager can force a device to restart</strong> = Yes, with a countdown such as 90 minutes and a reminder before it.</div></li>
+          <li><div>In the application's deployment type, on the <strong>User Experience</strong> tab, set the post-installation behavior to <strong>Determine behavior based on return codes</strong>.</div></li>
+        </ol>
+        <span class="part verify">✓ Check it worked</span>
+        <div class="verify-box"><p>After the restart, the deployment status changes from "Pending restart" to <strong>Success</strong>.</p></div>
+      </div>
+
+      <div class="fix" id="fix-wu">
+        <h3><span class="id">FIX K</span>Windows updates fail (<span class="err">0x8024xxxx</span> and similar)</h3>
+        <span class="part">Step 1: check the basics (Run Scripts)</span>
+        <div class="code">
+          <div class="label">PowerShell · Run Script: pending restart and free disk</div>
+          <pre id="ps-wubasics">$cbs = Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending'
+$wu  = Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired'
+$free = [math]::Round((Get-PSDrive C).Free / 1GB, 1)
+"PendingRestart=$($cbs -or $wu); FreeGB=$free"</pre>
+          <button class="copy" type="button" data-target="ps-wubasics">Copy</button>
+        </div>
+        <p>If PendingRestart is True, restart the PC first. If FreeGB is below 10, free up disk space; Disk Cleanup and old user profiles are the usual targets. Many update failures disappear after just these two steps.</p>
+        <span class="part">Step 2: repair the Windows Update components (on one PC, as admin)</span>
+        <div class="code">
+          <div class="label">cmd · reset Windows Update and repair system files</div>
+          <pre id="cmd-wureset">net stop wuauserv
+net stop bits
+net stop cryptsvc
+ren C:\Windows\SoftwareDistribution SoftwareDistribution.old
+ren C:\Windows\System32\catroot2 catroot2.old
+net start cryptsvc
+net start bits
+net start wuauserv
+DISM /Online /Cleanup-Image /RestoreHealth
+sfc /scannow</pre>
+          <button class="copy" type="button" data-target="cmd-wureset">Copy</button>
+        </div>
+        <p class="note">DISM and sfc can take 15–30 minutes. Run Scripts is meant for short scripts, so for many PCs, deploy these commands as an MECM <strong>Package/Program</strong>, or as a task sequence, instead.</p>
+        <span class="part verify">✓ Check it worked</span>
+        <div class="verify-box">
+          <p>On the PC, run <strong>Control Panel → Configuration Manager → Actions → Software Updates Scan Cycle</strong>, then <strong>Software Updates Deployment Evaluation Cycle</strong>.</p>
+          <ul>
+            <li><code>WUAHandler.log</code> shows a successful scan with no error codes.</li>
+            <li><code>UpdatesDeployment.log</code> shows the updates installing.</li>
+            <li>Run <code>Get-HotFix | Sort-Object InstalledOn -Descending | Select-Object -First 5</code> and confirm the newest updates appear.</li>
+            <li>In the console, the PC is now counted as <strong>Compliant</strong> on the update deployment.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- 06 -->
     <section id="routine">
-      <h2><span class="n">04</span>Weekly routine</h2>
-      <ol class="routine">
-        <li style="--sev: var(--accent)"><span class="rank">1</span><div>Check <code>Clients - Inactive</code>. Repair, wake up or delete those devices.</div></li>
-        <li style="--sev: var(--high)"><span class="rank">2</span><div>Open the Error tab on each deployment and fix the top 2–3 error codes.</div></li>
-        <li style="--sev: var(--crit)"><span class="rank">3</span><div>Anything still failing after 2 attempts: reimage the PC, or log it as an exception with an owner and a review date.</div></li>
+      <h2><span class="n">06</span>Weekly routine and targets</h2>
+      <p>Track three numbers every week. If they improve, the fixes are working.</p>
+      <div class="kpi">
+        <div><b>≥ 95%</b><span>of PCs with Client Activity = Active<br><span class="path" style="margin-top:6px">Monitoring → Client Status → Client Activity</span></span></div>
+        <div><b>≥ 95%</b><span>success on each deployment<br><span class="path" style="margin-top:6px">Monitoring → Deployments → Compliance %</span></span></div>
+        <div><b>Falling</b><span>finding count in your vulnerability scanner, week on week</span></div>
+      </div>
+      <ol class="steps">
+        <li><div><span class="when">Monday · 30 min</span>Note the member count of <code>Clients - Inactive</code>. Run the triage script from section 02 and work through Fixes A–D.</div></li>
+        <li><div><span class="when">Tuesday · 1 hour</span>Open the Error tab on each active deployment. Fix the top 2–3 error codes with Fixes E–K, test on one PC, then roll out.</div></li>
+        <li><div><span class="when">Friday · 15 min</span>Write the three numbers above in a spreadsheet. Anything that has failed twice gets reimaged, or logged as an exception with an owner and a review date.</div></li>
       </ol>
     </section>
   </main>
 </div>
 
-<footer>Prepared October 2026. Error codes and menu names come from general MECM knowledge and can differ slightly between versions. Confirm them against your console and logs.</footer>
+<footer>Prepared October 2026. Steps are based on general MECM (Current Branch) knowledge; menu names, defaults and error codes can differ slightly between versions. Test every script on a pilot collection before running it on all PCs.</footer>
+
+<script>
+document.querySelectorAll('.copy').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const el = document.getElementById(btn.dataset.target);
+    const done = () => { btn.textContent = 'Copied'; setTimeout(() => btn.textContent = 'Copy', 1500); };
+    const fallback = () => {
+      const r = document.createRange(); r.selectNodeContents(el);
+      const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+      btn.textContent = 'Selected';
+      setTimeout(() => btn.textContent = 'Copy', 1500);
+    };
+    try { navigator.clipboard.writeText(el.innerText).then(done, fallback); } catch (e) { fallback(); }
+  });
+});
+</script>
 </body>
 </html>
