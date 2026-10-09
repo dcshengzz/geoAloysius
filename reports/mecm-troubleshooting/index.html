@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>[hidden]{display:none!important}body{margin:0}img{max-width:100%}</style>
+<title>MECM Deployment Troubleshooting</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: single reading column (~760px) with a sticky contents rail on wide screens; sections are numbered because they map to a working order. */
+:root {
+  --bg: #f5f7f8;
+  --surface: #ffffff;
+  --fg: #17212b;
+  --muted: #56636f;
+  --line: #d9e0e5;
+  --accent: #0f5f7a;
+  --accent-soft: #e2eff4;
+  --code-bg: #eef2f4;
+  --crit: #b4232c;
+  --high: #c2410c;
+  --med: #a16207;
+  --low: #3f6f4f;
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f151b; --surface: #161e26; --fg: #e3e9ee; --muted: #9aa8b4; --line: #2a3640;
+    --accent: #5cb4d3; --accent-soft: #17303b; --code-bg: #1b252e;
+    --crit: #f2737a; --high: #f59a5c; --med: #e0b64a; --low: #7fbf92;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f151b; --surface: #161e26; --fg: #e3e9ee; --muted: #9aa8b4; --line: #2a3640;
+  --accent: #5cb4d3; --accent-soft: #17303b; --code-bg: #1b252e;
+  --crit: #f2737a; --high: #f59a5c; --med: #e0b64a; --low: #7fbf92;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--font-body); font-size: 17px; line-height: 1.6;
+  padding-inline: 20px; padding-block: 0 64px;
+}
+.wrap { max-width: 1080px; margin: 0 auto; display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 56px; }
+@media (max-width: 860px) { .wrap { grid-template-columns: minmax(0, 1fr); gap: 0; } nav.toc { display: none; } }
+
+header.top { max-width: 1080px; margin: 0 auto; padding-block: 48px 32px; border-bottom: 1px solid var(--line); margin-bottom: 40px; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+h1 { font-family: var(--font-display); font-weight: 800; font-size: clamp(30px, 5vw, 46px); line-height: 1.1; margin: 10px 0 14px; text-wrap: balance; letter-spacing: -.01em; }
+.lede { max-width: 64ch; color: var(--muted); font-size: 19px; margin: 0; }
+
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; margin-top: 28px; max-width: 760px; }
+.stat { background: var(--surface); padding: 16px 18px; }
+.stat b { display: block; font-family: var(--font-display); font-size: 28px; font-variant-numeric: tabular-nums; }
+.stat span { font-size: 14px; color: var(--muted); }
+@media (max-width: 520px) { .stats { grid-template-columns: minmax(0, 1fr); } }
+
+nav.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); align-self: start; font-size: 14px; }
+nav.toc p { font-family: var(--font-mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
+nav.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+nav.toc a { color: var(--muted); text-decoration: none; display: flex; gap: 8px; }
+nav.toc a:hover, nav.toc a:focus-visible { color: var(--accent); }
+nav.toc a span { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+main { min-width: 0; max-width: 760px; }
+section { padding-block: 8px 36px; border-bottom: 1px solid var(--line); margin-bottom: 36px; }
+section:last-of-type { border-bottom: 0; }
+h2 { font-family: var(--font-display); font-weight: 700; font-size: 25px; line-height: 1.25; margin: 0 0 12px; display: flex; gap: 12px; align-items: baseline; text-wrap: balance; }
+h2 .n { font-family: var(--font-mono); font-size: 14px; font-weight: 500; color: var(--accent); }
+h3 { font-family: var(--font-display); font-size: 17px; margin: 24px 0 8px; }
+p { margin: 0 0 14px; }
+ul { margin: 0 0 14px; padding-left: 22px; }
+li { margin-bottom: 6px; }
+code { font-family: var(--font-mono); font-size: .86em; background: var(--code-bg); padding: 1px 5px; border-radius: 3px; }
+a { color: var(--accent); }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.callout { background: var(--accent-soft); border-radius: 6px; padding: 14px 18px; margin: 18px 0; }
+.callout strong { color: var(--accent); }
+
+/* Before / after illustration */
+.compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 18px 0; }
+@media (max-width: 600px) { .compare { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; min-width: 0; }
+.panel h4 { margin: 0 0 8px; font-family: var(--font-mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+.panel .row { display: flex; justify-content: space-between; gap: 12px; font-size: 15px; padding: 4px 0; border-top: 1px dashed var(--line); }
+.panel .row:first-of-type { border-top: 0; }
+.panel .row span:last-child { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
+
+/* Priority ladder */
+.ladder { list-style: none; padding: 0; margin: 16px 0; display: grid; gap: 8px; }
+.ladder li { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; align-items: start; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--sev); border-radius: 4px; padding: 10px 14px; margin: 0; }
+.ladder .rank { font-family: var(--font-mono); font-weight: 500; color: var(--sev); font-variant-numeric: tabular-nums; }
+.ladder b { display: block; }
+.ladder small { color: var(--muted); font-size: 14px; }
+
+/* Tables */
+.table-wrap { overflow-x: auto; margin: 16px 0; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 15px; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+th { font-family: var(--font-mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 500; background: var(--code-bg); }
+td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pill { display: inline-block; font-family: var(--font-mono); font-size: 12px; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+.pill.crit { color: var(--crit); } .pill.high { color: var(--high); } .pill.med { color: var(--med); } .pill.low { color: var(--low); }
+
+/* Code */
+.code { position: relative; margin: 14px 0 18px; }
+.code pre { margin: 0; background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; padding-right: 76px; overflow-x: auto; font-family: var(--font-mono); font-size: 13.5px; line-height: 1.55; }
+.code .label { font-family: var(--font-mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.copy { position: absolute; right: 8px; bottom: 8px; font-family: var(--font-mono); font-size: 12px; background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 4px; padding: 4px 10px; cursor: pointer; }
+.copy:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Plan steps */
+.steps { list-style: none; padding: 0; margin: 16px 0; counter-reset: step; display: grid; gap: 0; }
+.steps li { counter-increment: step; display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 14px; padding: 12px 0; border-top: 1px solid var(--line); margin: 0; }
+.steps li:first-child { border-top: 0; }
+.steps li::before { content: counter(step); font-family: var(--font-display); font-weight: 800; font-size: 22px; color: var(--accent); line-height: 1.2; }
+.steps .when { font-family: var(--font-mono); font-size: 12px; color: var(--muted); display: block; }
+
+footer { max-width: 1080px; margin: 0 auto; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); padding-top: 18px; }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+html { scroll-behavior: smooth; }
+</style>
+<style>
+.path { font-family: var(--font-mono); font-size: 13px; color: var(--accent); background: var(--accent-soft); padding: 2px 8px; border-radius: 4px; display: inline-block; margin: 2px 0 8px; overflow-wrap: anywhere; }
+.note { color: var(--muted); font-size: 15px; }
+.err { font-family: var(--font-mono); font-size: 13px; font-weight: 500; color: var(--high); white-space: nowrap; }
+.err.ok { color: var(--low); }
+td code, td .err { font-size: 13px; }
+.logs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 14px 0; }
+@media (max-width: 600px) { .logs { grid-template-columns: minmax(0, 1fr); } }
+.logs div { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 10px 14px; min-width: 0; }
+.logs b { font-family: var(--font-mono); font-size: 14px; font-weight: 500; display: block; overflow-wrap: anywhere; }
+.logs span { color: var(--muted); font-size: 15px; }
+.routine { list-style: none; padding: 0; margin: 16px 0; display: grid; gap: 8px; }
+.routine li { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--sev); border-radius: 4px; padding: 10px 14px; margin: 0; }
+.routine .rank { font-family: var(--font-mono); color: var(--sev); }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="eyebrow">Infrastructure · MECM / SCCM</div>
+  <h1>When MECM deployments don't reach every PC</h1>
+  <p class="lede">Two problems stop patching at less than 100%: devices that show as inactive, and software that fails to update. Fix both by grouping failures by cause, not by device.</p>
+  <p class="note" style="margin-top:14px">Part of a series: <a href="http://100.66.66.66:8088/">Fleet Vulnerability Remediation Plan</a> · <a href="http://100.66.66.66:8089/">MECM Patching Guide</a></p>
+</header>
+
+<div class="wrap">
+  <nav class="toc" aria-label="Contents">
+    <p>Contents</p>
+    <ol>
+      <li><a href="#inactive"><span>01</span> Inactive devices</a></li>
+      <li><a href="#failures"><span>02</span> Failed installs</a></li>
+      <li><a href="#logs"><span>03</span> Client log files</a></li>
+      <li><a href="#routine"><span>04</span> Weekly routine</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <section id="inactive">
+      <h2><span class="n">01</span>Inactive devices</h2>
+      <div class="callout"><strong>A deployment isn't lost when a device is inactive.</strong> Once the PC comes back online and checks in, it picks up the deployment and installs it, as long as the deployment hasn't expired. Set <strong>deadlines but no expiry date</strong>, and late devices catch up on their own.</div>
+      <p>Then sort the inactive devices into these groups:</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Cause</th><th>How to tell</th><th>Fix</th></tr></thead>
+          <tbody>
+            <tr><td><strong>PC is switched off</strong> or rarely used</td><td>Last logon is old in AD too</td><td>Wake-on-LAN, or a power policy that keeps PCs on overnight on patch days. If a PC is never used, remove it.</td></tr>
+            <tr><td><strong>Laptop off the office network</strong> (home, no VPN)</td><td>Comes back to active when the user visits the office</td><td>A <strong>Cloud Management Gateway (CMG)</strong> so clients reach MECM over the internet, or co-management with Intune</td></tr>
+            <tr><td><strong>Broken MECM client</strong></td><td>PC responds to ping but has no MECM heartbeat</td><td>Repair or reinstall the client (see below)</td></tr>
+            <tr><td><strong>Stale record</strong> (reimaged, renamed or scrapped)</td><td>Duplicate names, or the device no longer exists</td><td>Delete the old record. Turn on the <em>Delete Inactive Client Discovery Data</em> and <em>Delete Aged Discovery Data</em> maintenance tasks.</td></tr>
+            <tr><td><strong>Boundary problem</strong></td><td>Client is active but can't download content</td><td>Put the PC's subnet or IP range in a boundary group that has a distribution point</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Repair broken clients at scale</h3>
+      <ul>
+        <li>Use a GPO <strong>startup script</strong> that checks the <code>CcmExec</code> service on every boot and reinstalls the client if it's broken. The free community <em>ConfigMgr Client Health</em> script by Anders Rødland does this and is widely used.</li>
+        <li>Or use <strong>Client Push</strong> on the device collection with <em>Always install, even if already installed</em>.</li>
+        <li>Track the problem with a collection called <code>Clients - Inactive</code>, and check it weekly:</li>
+      </ul>
+      <span class="path">Monitoring → Client Status</span>
+    </section>
+
+    <section id="failures">
+      <h2><span class="n">02</span>Software that fails to update</h2>
+      <p>Open the Error tab of the deployment. It groups failed PCs by <strong>error code</strong>. Fix each code once, and it fixes every PC with that code.</p>
+      <span class="path">Monitoring → Deployments → [deployment] → Error tab</span>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Error / symptom</th><th>Usual cause</th><th>Fix</th></tr></thead>
+          <tbody>
+            <tr><td><span class="err">1618</span> / <span class="err">1603</span></td><td>App is open (Chrome, Teams, Java, Adobe), or another install is running</td><td>Wrap the install in <strong>PSADT</strong> (PowerShell App Deployment Toolkit). It closes the app or asks the user to, then installs. Or deploy outside working hours.</td></tr>
+            <tr><td>Install says success, scanner still flags it</td><td><strong>Per-user install</strong> in the user's profile (Chrome, Zoom, Teams). MECM runs as SYSTEM and can't see it.</td><td>Uninstall the per-user copies with a script, then deploy the machine-wide version</td></tr>
+            <tr><td><span class="err">0x87D00324</span></td><td>Wrong <strong>detection method</strong>: app not detected after install</td><td>Detect the new version by file version or MSI product code, not just "file exists"</td></tr>
+            <tr><td>Old version stays installed</td><td>Supersedence uninstall fails because the vendor's uninstall command is different</td><td>Add a custom uninstall script, or clean up with Run Scripts</td></tr>
+            <tr><td><span class="err">0x87D00607</span></td><td>Content isn't on the distribution point, or a boundary problem</td><td>Distribute content to all DPs and check boundary groups</td></tr>
+            <tr><td><span class="err ok">3010</span></td><td>Needs a restart. This is not an error.</td><td>Set a restart deadline in client settings</td></tr>
+            <tr><td><span class="err">0x8024xxxx</span></td><td>Windows Update: pending restart, low disk space, or broken update components</td><td>Restart, free disk space, run <code>DISM /Online /Cleanup-Image /RestoreHealth</code> through Run Scripts</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note">The biggest wins are usually PSADT, for apps that are open during install, and cleaning up per-user installs.</p>
+    </section>
+
+    <section id="logs">
+      <h2><span class="n">03</span>Client log files</h2>
+      <p>To see the real reason on a failing PC, open these files in <code>C:\Windows\CCM\Logs</code>:</p>
+      <div class="logs">
+        <div><b>AppEnforce.log</b><span>Install command and exit code</span></div>
+        <div><b>AppDiscovery.log</b><span>Detection results</span></div>
+        <div><b>ContentTransferManager.log · CAS.log</b><span>Download problems</span></div>
+        <div><b>WUAHandler.log · UpdatesDeployment.log</b><span>Windows Update problems</span></div>
+      </div>
+    </section>
+
+    <section id="routine">
+      <h2><span class="n">04</span>Weekly routine</h2>
+      <ol class="routine">
+        <li style="--sev: var(--accent)"><span class="rank">1</span><div>Check <code>Clients - Inactive</code>. Repair, wake up or delete those devices.</div></li>
+        <li style="--sev: var(--high)"><span class="rank">2</span><div>Open the Error tab on each deployment and fix the top 2–3 error codes.</div></li>
+        <li style="--sev: var(--crit)"><span class="rank">3</span><div>Anything still failing after 2 attempts: reimage the PC, or log it as an exception with an owner and a review date.</div></li>
+      </ol>
+    </section>
+  </main>
+</div>
+
+<footer>Prepared October 2026. Error codes and menu names come from general MECM knowledge and can differ slightly between versions. Confirm them against your console and logs.</footer>
+</body>
+</html>
