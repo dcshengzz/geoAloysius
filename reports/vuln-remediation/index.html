@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>[hidden]{display:none!important}body{margin:0}img{max-width:100%}</style>
+<title>Fleet Vulnerability Remediation Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: single reading column (~760px) with a sticky contents rail on wide screens; sections are numbered because they map to a working order. */
+:root {
+  --bg: #f5f7f8;
+  --surface: #ffffff;
+  --fg: #17212b;
+  --muted: #56636f;
+  --line: #d9e0e5;
+  --accent: #0f5f7a;
+  --accent-soft: #e2eff4;
+  --code-bg: #eef2f4;
+  --crit: #b4232c;
+  --high: #c2410c;
+  --med: #a16207;
+  --low: #3f6f4f;
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f151b; --surface: #161e26; --fg: #e3e9ee; --muted: #9aa8b4; --line: #2a3640;
+    --accent: #5cb4d3; --accent-soft: #17303b; --code-bg: #1b252e;
+    --crit: #f2737a; --high: #f59a5c; --med: #e0b64a; --low: #7fbf92;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f151b; --surface: #161e26; --fg: #e3e9ee; --muted: #9aa8b4; --line: #2a3640;
+  --accent: #5cb4d3; --accent-soft: #17303b; --code-bg: #1b252e;
+  --crit: #f2737a; --high: #f59a5c; --med: #e0b64a; --low: #7fbf92;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--font-body); font-size: 17px; line-height: 1.6;
+  padding-inline: 20px; padding-block: 0 64px;
+}
+.wrap { max-width: 1080px; margin: 0 auto; display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 56px; }
+@media (max-width: 860px) { .wrap { grid-template-columns: minmax(0, 1fr); gap: 0; } nav.toc { display: none; } }
+
+header.top { max-width: 1080px; margin: 0 auto; padding-block: 48px 32px; border-bottom: 1px solid var(--line); margin-bottom: 40px; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+h1 { font-family: var(--font-display); font-weight: 800; font-size: clamp(30px, 5vw, 46px); line-height: 1.1; margin: 10px 0 14px; text-wrap: balance; letter-spacing: -.01em; }
+.lede { max-width: 64ch; color: var(--muted); font-size: 19px; margin: 0; }
+
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; margin-top: 28px; max-width: 760px; }
+.stat { background: var(--surface); padding: 16px 18px; }
+.stat b { display: block; font-family: var(--font-display); font-size: 28px; font-variant-numeric: tabular-nums; }
+.stat span { font-size: 14px; color: var(--muted); }
+@media (max-width: 520px) { .stats { grid-template-columns: minmax(0, 1fr); } }
+
+nav.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); align-self: start; font-size: 14px; }
+nav.toc p { font-family: var(--font-mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
+nav.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+nav.toc a { color: var(--muted); text-decoration: none; display: flex; gap: 8px; }
+nav.toc a:hover, nav.toc a:focus-visible { color: var(--accent); }
+nav.toc a span { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+main { min-width: 0; max-width: 760px; }
+section { padding-block: 8px 36px; border-bottom: 1px solid var(--line); margin-bottom: 36px; }
+section:last-of-type { border-bottom: 0; }
+h2 { font-family: var(--font-display); font-weight: 700; font-size: 25px; line-height: 1.25; margin: 0 0 12px; display: flex; gap: 12px; align-items: baseline; text-wrap: balance; }
+h2 .n { font-family: var(--font-mono); font-size: 14px; font-weight: 500; color: var(--accent); }
+h3 { font-family: var(--font-display); font-size: 17px; margin: 24px 0 8px; }
+p { margin: 0 0 14px; }
+ul { margin: 0 0 14px; padding-left: 22px; }
+li { margin-bottom: 6px; }
+code { font-family: var(--font-mono); font-size: .86em; background: var(--code-bg); padding: 1px 5px; border-radius: 3px; }
+a { color: var(--accent); }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.callout { background: var(--accent-soft); border-radius: 6px; padding: 14px 18px; margin: 18px 0; }
+.callout strong { color: var(--accent); }
+
+/* Before / after illustration */
+.compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 18px 0; }
+@media (max-width: 600px) { .compare { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; min-width: 0; }
+.panel h4 { margin: 0 0 8px; font-family: var(--font-mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+.panel .row { display: flex; justify-content: space-between; gap: 12px; font-size: 15px; padding: 4px 0; border-top: 1px dashed var(--line); }
+.panel .row:first-of-type { border-top: 0; }
+.panel .row span:last-child { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
+
+/* Priority ladder */
+.ladder { list-style: none; padding: 0; margin: 16px 0; display: grid; gap: 8px; }
+.ladder li { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; align-items: start; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--sev); border-radius: 4px; padding: 10px 14px; margin: 0; }
+.ladder .rank { font-family: var(--font-mono); font-weight: 500; color: var(--sev); font-variant-numeric: tabular-nums; }
+.ladder b { display: block; }
+.ladder small { color: var(--muted); font-size: 14px; }
+
+/* Tables */
+.table-wrap { overflow-x: auto; margin: 16px 0; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 15px; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+th { font-family: var(--font-mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 500; background: var(--code-bg); }
+td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pill { display: inline-block; font-family: var(--font-mono); font-size: 12px; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+.pill.crit { color: var(--crit); } .pill.high { color: var(--high); } .pill.med { color: var(--med); } .pill.low { color: var(--low); }
+
+/* Code */
+.code { position: relative; margin: 14px 0 18px; }
+.code pre { margin: 0; background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; padding-right: 76px; overflow-x: auto; font-family: var(--font-mono); font-size: 13.5px; line-height: 1.55; }
+.code .label { font-family: var(--font-mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.copy { position: absolute; right: 8px; bottom: 8px; font-family: var(--font-mono); font-size: 12px; background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 4px; padding: 4px 10px; cursor: pointer; }
+.copy:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Plan steps */
+.steps { list-style: none; padding: 0; margin: 16px 0; counter-reset: step; display: grid; gap: 0; }
+.steps li { counter-increment: step; display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 14px; padding: 12px 0; border-top: 1px solid var(--line); margin: 0; }
+.steps li:first-child { border-top: 0; }
+.steps li::before { content: counter(step); font-family: var(--font-display); font-weight: 800; font-size: 22px; color: var(--accent); line-height: 1.2; }
+.steps .when { font-family: var(--font-mono); font-size: 12px; color: var(--muted); display: block; }
+
+footer { max-width: 1080px; margin: 0 auto; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); padding-top: 18px; }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+html { scroll-behavior: smooth; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="eyebrow">Infrastructure · Vulnerability management</div>
+  <h1>Remediating vulnerabilities across a 400-device fleet</h1>
+  <p class="lede">Fixing CVEs one at a time on each machine doesn't scale. This plan fixes them by software, automates the patching, and stops the backlog from coming back.</p>
+  <div class="stats" aria-label="Situation summary">
+    <div class="stat"><b>400</b><span>managed devices</span></div>
+    <div class="stat"><b>20+</b><span>findings per device</span></div>
+    <div class="stat"><b>~8,000</b><span>findings in total (estimate)</span></div>
+  </div>
+</header>
+
+<div class="wrap">
+  <nav class="toc" aria-label="Contents">
+    <p>Contents</p>
+    <ol>
+      <li><a href="#group"><span>01</span> Group by software</a></li>
+      <li><a href="#prioritise"><span>02</span> Prioritise</a></li>
+      <li><a href="#automate"><span>03</span> Automate patching</a></li>
+      <li><a href="#remove"><span>04</span> Remove unused software</a></li>
+      <li><a href="#prevent"><span>05</span> Stop it coming back</a></li>
+      <li><a href="#process"><span>06</span> Make it a process</a></li>
+      <li><a href="#plan"><span>07</span> First two weeks</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <section id="group">
+      <h2><span class="n">01</span>Group by software, not by CVE</h2>
+      <p>Twenty findings on one device usually come from only 3–5 programs: an old Chrome, Java, Adobe Reader, 7-Zip, WinRAR, Zoom, VLC or Office. Updating one program can close ten or more CVEs at once.</p>
+      <div class="compare">
+        <div class="panel">
+          <h4>Per-CVE view (what you have)</h4>
+          <div class="row"><span>CVE-2024-xxxx · PC-014</span><span>1 fix</span></div>
+          <div class="row"><span>CVE-2024-yyyy · PC-014</span><span>1 fix</span></div>
+          <div class="row"><span>CVE-2025-zzzz · PC-014</span><span>1 fix</span></div>
+          <div class="row"><span>… × 8,000 rows</span><span>8,000 fixes</span></div>
+        </div>
+        <div class="panel">
+          <h4>Per-software view (what you want)</h4>
+          <div class="row"><span>Google Chrome &lt; current</span><span>1 deployment</span></div>
+          <div class="row"><span>Java 8 (old builds)</span><span>1 deployment</span></div>
+          <div class="row"><span>Adobe Acrobat Reader</span><span>1 deployment</span></div>
+          <div class="row"><span>… top 10 products</span><span>~10 deployments</span></div>
+        </div>
+      </div>
+      <p class="muted-note" style="color:var(--muted);font-size:14px;margin-top:-6px">Example rows for illustration. Your scanner export will have the real products.</p>
+      <ul>
+        <li>Export your scanner report and pivot it by <strong>product + version</strong>, not by CVE or host.</li>
+        <li>Typically about 10 products cause about 80% of the findings across the fleet. Fix those first.</li>
+        <li>Defender for Endpoint (“Software inventory” / “Remediation”) and Tenable (“Solutions”) already provide this grouping.</li>
+      </ul>
+    </section>
+
+    <section id="prioritise">
+      <h2><span class="n">02</span>Prioritise: not all findings are equal</h2>
+      <p>Work through findings in this order:</p>
+      <ol class="ladder">
+        <li style="--sev: var(--crit)"><span class="rank">1</span><div><b>On the CISA KEV list</b><small>Known Exploited Vulnerabilities: attackers are already using these.</small></div></li>
+        <li style="--sev: var(--crit)"><span class="rank">2</span><div><b>Internet-facing servers</b><small>Web servers, VPN gateways, remote access, anything reachable from outside.</small></div></li>
+        <li style="--sev: var(--high)"><span class="rank">3</span><div><b>High EPSS score</b><small>Exploit Prediction Scoring System: the likelihood of exploitation in the next 30 days.</small></div></li>
+        <li style="--sev: var(--med)"><span class="rank">4</span><div><b>CVSS Critical / High</b><small>Base score 7.0 and above.</small></div></li>
+        <li style="--sev: var(--low)"><span class="rank">5</span><div><b>Everything else</b><small>Handled in the normal monthly patch cycle.</small></div></li>
+      </ol>
+    </section>
+
+    <section id="automate">
+      <h2><span class="n">03</span>Automate patching</h2>
+      <p>This is the biggest win. In most cases you don't need to uninstall and reinstall: most installers upgrade in place. Push updates centrally.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Area</th><th>Tools</th></tr></thead>
+          <tbody>
+            <tr><td>Windows OS / Office</td><td>WSUS, Intune / Windows Autopatch, SCCM (MECM)</td></tr>
+            <tr><td>Third-party apps</td><td><strong>PatchMyPC</strong> (plugs into Intune/SCCM), ManageEngine Patch Manager Plus, Action1 (free up to 200 endpoints), NinjaOne, Ivanti</td></tr>
+            <tr><td>No budget</td><td><code>winget</code> or Chocolatey scripts pushed via GPO, Intune or a scheduled task</td></tr>
+            <tr><td>Linux</td><td><code>unattended-upgrades</code> / <code>dnf-automatic</code>, Ansible</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="code">
+        <div class="label">PowerShell · upgrade all winget-managed apps silently</div>
+        <pre id="code-winget">winget upgrade --all --silent --accept-package-agreements --accept-source-agreements --include-unknown</pre>
+        <button class="copy" type="button" data-target="code-winget">Copy</button>
+      </div>
+      <p>Push it as a startup script or a scheduled task running as SYSTEM.</p>
+    </section>
+
+    <section id="remove">
+      <h2><span class="n">04</span>Remove software nobody needs</h2>
+      <p>Many findings come from software nobody uses: old Java, Flash leftovers, old runtimes installed side by side, trial software.</p>
+      <ul>
+        <li>Get an inventory of installed software across all devices from your scanner, Intune or SCCM.</li>
+        <li>Script removal of old versions and unapproved apps. Old Java versions often stay installed next to the new one and keep getting flagged.</li>
+      </ul>
+      <div class="code">
+        <div class="label">PowerShell · remove Java builds older than a given version</div>
+        <pre id="code-java">Get-Package -Name "Java*" |
+  Where-Object Version -lt "8.0.431" |
+  Uninstall-Package -Force</pre>
+        <button class="copy" type="button" data-target="code-java">Copy</button>
+      </div>
+      <p style="color:var(--muted);font-size:15px">Set the version threshold to your current approved build, and test on a pilot group before you deploy it to every device.</p>
+    </section>
+
+    <section id="prevent">
+      <h2><span class="n">05</span>Stop it from coming back</h2>
+      <ul>
+        <li><strong>Approved software list.</strong> Define a standard set of apps for the company.</li>
+        <li><strong>Remove local admin rights</strong> so users can't install software on their own.</li>
+        <li><strong>Turn on auto-update through policy</strong> for Chrome, Edge, Firefox, Adobe Reader and Zoom.</li>
+        <li><strong>Application control</strong> with AppLocker or WDAC if you want to go further.</li>
+        <li><strong>Standard image.</strong> For very messy machines, reimaging is often faster than cleaning up 20 findings.</li>
+        <li><strong>End-of-life OS.</strong> Unpatched Windows 10 and Server 2012 can't be patched clean. Upgrade or replace them.</li>
+      </ul>
+    </section>
+
+    <section id="process">
+      <h2><span class="n">06</span>Make it a process</h2>
+      <ul>
+        <li><strong>Monthly patch cycle</strong>, e.g. one week after Patch Tuesday.</li>
+        <li><strong>Rollout rings.</strong> Test on 5–10% of devices (IT staff first), then deploy to everyone after a few days.</li>
+        <li><strong>Exceptions register.</strong> If a legacy app needs an old version, document the accepted risk and add compensating controls such as network isolation.</li>
+        <li><strong>Rescan after fixing.</strong> Use authenticated (credentialed) scans so stale results and leftover registry entries don't show up as false findings.</li>
+      </ul>
+      <h3>Fix-time targets (SLA)</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Severity</th><th>CVSS</th><th>Fix within</th></tr></thead>
+          <tbody>
+            <tr><td><span class="pill crit">Critical</span></td><td class="num">9.0–10.0</td><td class="num">7–14 days</td></tr>
+            <tr><td><span class="pill high">High</span></td><td class="num">7.0–8.9</td><td class="num">30 days</td></tr>
+            <tr><td><span class="pill med">Medium</span></td><td class="num">4.0–6.9</td><td class="num">90 days</td></tr>
+            <tr><td><span class="pill low">Low</span></td><td class="num">0.1–3.9</td><td class="num">Next cycle / accept</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="color:var(--muted);font-size:15px">Anything on the KEV list follows the Critical target regardless of its CVSS score.</p>
+    </section>
+
+    <section id="plan">
+      <h2><span class="n">07</span>Suggested first two weeks</h2>
+      <ol class="steps">
+        <li><div><span class="when">Days 1–2</span>Export the scan results and pivot by software to get your top 10 offenders.</div></li>
+        <li><div><span class="when">Days 3–7</span>Push updates or removals for those 10 to a pilot group, then to everyone.</div></li>
+        <li><div><span class="when">Day 8</span>Rescan. Expect the total finding count to drop by roughly 60–80%.</div></li>
+        <li><div><span class="when">Days 9–14</span>Set up automated third-party patching so the count stays low.</div></li>
+      </ol>
+      <div class="callout"><strong>Next step:</strong> confirm which scanner and management tools are available (Defender, Intune, SCCM, ManageEngine, or plain AD/GPO). The setup and scripts depend on that choice.</div>
+    </section>
+  </main>
+</div>
+
+<footer>Prepared October 2026. Figures for total findings and expected reduction are estimates based on typical fleets, not measured results.</footer>
+
+<script>
+document.querySelectorAll('.copy').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const el = document.getElementById(btn.dataset.target);
+    const done = () => { btn.textContent = 'Copied'; setTimeout(() => btn.textContent = 'Copy', 1500); };
+    const fallback = () => {
+      const r = document.createRange(); r.selectNodeContents(el);
+      const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+      btn.textContent = 'Selected';
+      setTimeout(() => btn.textContent = 'Copy', 1500);
+    };
+    try { navigator.clipboard.writeText(el.innerText).then(done, fallback); } catch (e) { fallback(); }
+  });
+});
+</script>
+</body>
+</html>

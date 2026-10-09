@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>[hidden]{display:none!important}body{margin:0}img{max-width:100%}</style>
+<title>MECM Patching Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: single reading column (~760px) with a sticky contents rail on wide screens; sections are numbered because they map to a working order. */
+:root {
+  --bg: #f5f7f8;
+  --surface: #ffffff;
+  --fg: #17212b;
+  --muted: #56636f;
+  --line: #d9e0e5;
+  --accent: #0f5f7a;
+  --accent-soft: #e2eff4;
+  --code-bg: #eef2f4;
+  --crit: #b4232c;
+  --high: #c2410c;
+  --med: #a16207;
+  --low: #3f6f4f;
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f151b; --surface: #161e26; --fg: #e3e9ee; --muted: #9aa8b4; --line: #2a3640;
+    --accent: #5cb4d3; --accent-soft: #17303b; --code-bg: #1b252e;
+    --crit: #f2737a; --high: #f59a5c; --med: #e0b64a; --low: #7fbf92;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f151b; --surface: #161e26; --fg: #e3e9ee; --muted: #9aa8b4; --line: #2a3640;
+  --accent: #5cb4d3; --accent-soft: #17303b; --code-bg: #1b252e;
+  --crit: #f2737a; --high: #f59a5c; --med: #e0b64a; --low: #7fbf92;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--font-body); font-size: 17px; line-height: 1.6;
+  padding-inline: 20px; padding-block: 0 64px;
+}
+.wrap { max-width: 1080px; margin: 0 auto; display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 56px; }
+@media (max-width: 860px) { .wrap { grid-template-columns: minmax(0, 1fr); gap: 0; } nav.toc { display: none; } }
+
+header.top { max-width: 1080px; margin: 0 auto; padding-block: 48px 32px; border-bottom: 1px solid var(--line); margin-bottom: 40px; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+h1 { font-family: var(--font-display); font-weight: 800; font-size: clamp(30px, 5vw, 46px); line-height: 1.1; margin: 10px 0 14px; text-wrap: balance; letter-spacing: -.01em; }
+.lede { max-width: 64ch; color: var(--muted); font-size: 19px; margin: 0; }
+
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; margin-top: 28px; max-width: 760px; }
+.stat { background: var(--surface); padding: 16px 18px; }
+.stat b { display: block; font-family: var(--font-display); font-size: 28px; font-variant-numeric: tabular-nums; }
+.stat span { font-size: 14px; color: var(--muted); }
+@media (max-width: 520px) { .stats { grid-template-columns: minmax(0, 1fr); } }
+
+nav.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); align-self: start; font-size: 14px; }
+nav.toc p { font-family: var(--font-mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
+nav.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+nav.toc a { color: var(--muted); text-decoration: none; display: flex; gap: 8px; }
+nav.toc a:hover, nav.toc a:focus-visible { color: var(--accent); }
+nav.toc a span { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+main { min-width: 0; max-width: 760px; }
+section { padding-block: 8px 36px; border-bottom: 1px solid var(--line); margin-bottom: 36px; }
+section:last-of-type { border-bottom: 0; }
+h2 { font-family: var(--font-display); font-weight: 700; font-size: 25px; line-height: 1.25; margin: 0 0 12px; display: flex; gap: 12px; align-items: baseline; text-wrap: balance; }
+h2 .n { font-family: var(--font-mono); font-size: 14px; font-weight: 500; color: var(--accent); }
+h3 { font-family: var(--font-display); font-size: 17px; margin: 24px 0 8px; }
+p { margin: 0 0 14px; }
+ul { margin: 0 0 14px; padding-left: 22px; }
+li { margin-bottom: 6px; }
+code { font-family: var(--font-mono); font-size: .86em; background: var(--code-bg); padding: 1px 5px; border-radius: 3px; }
+a { color: var(--accent); }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.callout { background: var(--accent-soft); border-radius: 6px; padding: 14px 18px; margin: 18px 0; }
+.callout strong { color: var(--accent); }
+
+/* Before / after illustration */
+.compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 18px 0; }
+@media (max-width: 600px) { .compare { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; min-width: 0; }
+.panel h4 { margin: 0 0 8px; font-family: var(--font-mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+.panel .row { display: flex; justify-content: space-between; gap: 12px; font-size: 15px; padding: 4px 0; border-top: 1px dashed var(--line); }
+.panel .row:first-of-type { border-top: 0; }
+.panel .row span:last-child { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
+
+/* Priority ladder */
+.ladder { list-style: none; padding: 0; margin: 16px 0; display: grid; gap: 8px; }
+.ladder li { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; align-items: start; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--sev); border-radius: 4px; padding: 10px 14px; margin: 0; }
+.ladder .rank { font-family: var(--font-mono); font-weight: 500; color: var(--sev); font-variant-numeric: tabular-nums; }
+.ladder b { display: block; }
+.ladder small { color: var(--muted); font-size: 14px; }
+
+/* Tables */
+.table-wrap { overflow-x: auto; margin: 16px 0; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 15px; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+th { font-family: var(--font-mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 500; background: var(--code-bg); }
+td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pill { display: inline-block; font-family: var(--font-mono); font-size: 12px; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+.pill.crit { color: var(--crit); } .pill.high { color: var(--high); } .pill.med { color: var(--med); } .pill.low { color: var(--low); }
+
+/* Code */
+.code { position: relative; margin: 14px 0 18px; }
+.code pre { margin: 0; background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; padding-right: 76px; overflow-x: auto; font-family: var(--font-mono); font-size: 13.5px; line-height: 1.55; }
+.code .label { font-family: var(--font-mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.copy { position: absolute; right: 8px; bottom: 8px; font-family: var(--font-mono); font-size: 12px; background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 4px; padding: 4px 10px; cursor: pointer; }
+.copy:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Plan steps */
+.steps { list-style: none; padding: 0; margin: 16px 0; counter-reset: step; display: grid; gap: 0; }
+.steps li { counter-increment: step; display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 14px; padding: 12px 0; border-top: 1px solid var(--line); margin: 0; }
+.steps li:first-child { border-top: 0; }
+.steps li::before { content: counter(step); font-family: var(--font-display); font-weight: 800; font-size: 22px; color: var(--accent); line-height: 1.2; }
+.steps .when { font-family: var(--font-mono); font-size: 12px; color: var(--muted); display: block; }
+
+footer { max-width: 1080px; margin: 0 auto; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); padding-top: 18px; }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+html { scroll-behavior: smooth; }
+</style>
+<style>
+.path { font-family: var(--font-mono); font-size: 13px; color: var(--accent); background: var(--accent-soft); padding: 2px 8px; border-radius: 4px; display: inline-block; margin: 2px 0 8px; overflow-wrap: anywhere; }
+.check { list-style: none; padding: 0; margin: 14px 0; display: grid; gap: 8px; }
+.check li { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; margin: 0; }
+.check li b { display: block; }
+.options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 16px 0; }
+@media (max-width: 640px) { .options { grid-template-columns: minmax(0, 1fr); } }
+.options .panel p:last-child, .options .panel ol:last-child { margin-bottom: 0; }
+.tag { font-family: var(--font-mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; }
+.tag.fast { color: var(--accent); } .tag.free { color: var(--low); }
+.note { color: var(--muted); font-size: 15px; }
+.steps li > div > p { margin: 6px 0 0; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="eyebrow">Infrastructure · MECM / SCCM</div>
+  <h1>Patching every PC from the MECM console</h1>
+  <p class="lede">Remoting into each PC to update it by hand is the slow path. MECM can deploy Windows, Office and third-party updates to every PC at the same time. This guide shows how.</p>
+  <p class="note" style="margin-top:14px">Companion to the <a href="http://100.66.66.66:8088/">Fleet Vulnerability Remediation Plan</a>.</p>
+</header>
+
+<div class="wrap">
+  <nav class="toc" aria-label="Contents">
+    <p>Contents</p>
+    <ol>
+      <li><a href="#check"><span>00</span> Check the setup</a></li>
+      <li><a href="#windows"><span>01</span> Windows &amp; Office</a></li>
+      <li><a href="#thirdparty"><span>02</span> Third-party apps</a></li>
+      <li><a href="#verify"><span>03</span> Verify</a></li>
+      <li><a href="#order"><span>04</span> Order of work</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <section id="check">
+      <h2><span class="n">00</span>Check what's set up</h2>
+      <p>Confirm these three things in the MECM console before deploying anything:</p>
+      <ul class="check">
+        <li><b>Software Update Point role exists</b><span class="path">Administration → Site Configuration → Servers and Site System Roles</span><br>If it's missing, Windows patching through MECM isn't set up yet. Ask the MECM admin first.</li>
+        <li><b>Updates are syncing</b><span class="path">Software Library → Software Updates → All Software Updates</span><br>The list should show recent updates.</li>
+        <li><b>PCs have a healthy client</b><span class="path">Assets and Compliance → Devices</span><br>Look for <strong>Client = Yes</strong> and active status. Only these PCs can receive deployments.</li>
+      </ul>
+    </section>
+
+    <section id="windows">
+      <h2><span class="n">01</span>Windows and Office updates to all PCs at once</h2>
+
+      <h3>Step 1 · Create collections (groups of PCs)</h3>
+      <span class="path">Assets and Compliance → Device Collections → Create Device Collection</span>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Collection</th><th>Members</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td><code>Patch - Pilot</code></td><td class="num">~10 PCs</td><td>IT staff first. Catches broken updates before everyone gets them.</td></tr>
+            <tr><td><code>Patch - All Workstations</code></td><td>Everyone else</td><td>Main rollout.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Step 2 · Clear the current backlog (one time)</h3>
+      <span class="path">Software Library → Software Updates → All Software Updates</span>
+      <ol class="steps">
+        <li><div>Filter the list: <strong>Required &gt; 0</strong>, <strong>Expired = No</strong>, <strong>Superseded = No</strong>, Classification = Security Updates / Critical Updates.</div></li>
+        <li><div>Select all → <strong>Create Software Update Group</strong> → <strong>Deploy</strong> to <code>Patch - Pilot</code>.</div></li>
+        <li><div>After 1–2 days with no problems, deploy the same group to <code>Patch - All Workstations</code> with a <strong>deadline</strong> (for example 48 hours). After the deadline, updates install even if users ignore the notification.</div></li>
+      </ol>
+      <div class="callout">This one step usually removes a big share of the findings, because the latest cumulative update replaces many older ones.</div>
+
+      <h3>Step 3 · Automate it so you never repeat this</h3>
+      <span class="path">Software Library → Software Updates → Automatic Deployment Rules → Create</span>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+          <tbody>
+            <tr><td>Date released</td><td>Last 1 month</td></tr>
+            <tr><td>Superseded</td><td>No</td></tr>
+            <tr><td>Products</td><td>Your Windows / Office / Microsoft 365 versions</td></tr>
+            <tr><td>Classification</td><td>Security Updates, Critical Updates</td></tr>
+            <tr><td>Schedule</td><td>Run the day after Patch Tuesday</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Create two rules with the same criteria:</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Rule</th><th>Target</th><th>Deadline</th></tr></thead>
+          <tbody>
+            <tr><td>ADR - Pilot</td><td><code>Patch - Pilot</code></td><td class="num">As soon as possible</td></tr>
+            <tr><td>ADR - Workstations</td><td><code>Patch - All Workstations</code></td><td class="num">~7 days later</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>After this, Microsoft patches deploy themselves every month.</p>
+    </section>
+
+    <section id="thirdparty">
+      <h2><span class="n">02</span>Third-party apps: Chrome, Java, Adobe and others</h2>
+      <p>This is likely where most of the 20 findings per PC come from, and MECM doesn't patch these out of the box. There are two ways to handle them.</p>
+      <div class="options">
+        <div class="panel">
+          <h4><span class="tag fast">Fastest · paid</span></h4>
+          <p><strong>Patch My PC</strong> plugs into MECM and adds hundreds of third-party apps to the same Software Updates list.</p>
+          <p>You then deploy them exactly like section 01, including the automatic monthly rules. This is the usual answer for MECM environments.</p>
+        </div>
+        <div class="panel">
+          <h4><span class="tag free">Free · more manual</span></h4>
+          <p>Deploy each new version as an <strong>MECM Application</strong> that replaces the old one.</p>
+          <p>Do this for the <strong>top 10</strong> most-flagged programs, not all 20.</p>
+        </div>
+      </div>
+
+      <h3>Free option · deploy the new version as an Application</h3>
+      <span class="path">Software Library → Application Management → Applications → Create Application</span>
+      <ol class="steps">
+        <li><div>Download the latest MSI, for example the Chrome Enterprise MSI or Adobe Reader.</div></li>
+        <li><div>Create the application. On the <strong>Supersedence</strong> tab, add the old version and tick <strong>Uninstall</strong>, so MECM removes the old one and installs the new one.</div></li>
+        <li><div>Deploy it as <strong>Required</strong> to <code>Patch - All Workstations</code>.</div></li>
+      </ol>
+
+      <h3>Remove leftover old versions with Run Scripts</h3>
+      <span class="path">Software Library → Scripts → Create Script</span>
+      <p>Then right-click a collection → <strong>Run Script</strong>. It runs on every PC in that collection at once.</p>
+      <div class="code">
+        <div class="label">PowerShell · remove Java builds older than a given version</div>
+        <pre id="code-java">Get-Package -Name "Java*" |
+  Where-Object Version -lt "8.0.431" |
+  Uninstall-Package -Force</pre>
+        <button class="copy" type="button" data-target="code-java">Copy</button>
+      </div>
+      <p class="note">A new script must be approved before it runs. By default, the person who created it can't approve it, so a second admin has to. Set the version threshold to your approved build.</p>
+
+      <h3>Target only the affected PCs</h3>
+      <p>Create a query-based collection such as “PCs where Installed Software = Java with version lower than X”, and deploy the fix only to that collection.</p>
+    </section>
+
+    <section id="verify">
+      <h2><span class="n">03</span>Check that it worked</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Where</th><th>What it shows</th></tr></thead>
+          <tbody>
+            <tr><td><span class="path" style="margin:0">Monitoring → Deployments</span></td><td>Success or failure per PC</td></tr>
+            <tr><td><span class="path" style="margin:0">Monitoring → Reporting → Software Updates - A Compliance</span></td><td>Overall compliance across the fleet</td></tr>
+            <tr><td>Your vulnerability scanner</td><td>Rescan. Expect a large drop in findings.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="order">
+      <h2><span class="n">04</span>Suggested order of work</h2>
+      <ol class="steps">
+        <li><div><span class="when">Week 1</span>Clear the Windows / Office backlog (section 01, step 2), then rescan.</div></li>
+        <li><div><span class="when">Weeks 1–2</span>Handle the top 10 third-party apps (section 02).</div></li>
+        <li><div><span class="when">Week 2</span>Set up the automatic monthly deployment rules (section 01, step 3).</div></li>
+        <li><div><span class="when">Ongoing</span>Ask management about Patch My PC if the third-party work keeps coming back.</div></li>
+      </ol>
+    </section>
+  </main>
+</div>
+
+<footer>Prepared October 2026. Menu names can differ slightly between MECM versions. This guide was written from general MECM knowledge, not from your console.</footer>
+
+<script>
+document.querySelectorAll('.copy').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const el = document.getElementById(btn.dataset.target);
+    const done = () => { btn.textContent = 'Copied'; setTimeout(() => btn.textContent = 'Copy', 1500); };
+    const fallback = () => {
+      const r = document.createRange(); r.selectNodeContents(el);
+      const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+      btn.textContent = 'Selected';
+      setTimeout(() => btn.textContent = 'Copy', 1500);
+    };
+    try { navigator.clipboard.writeText(el.innerText).then(done, fallback); } catch (e) { fallback(); }
+  });
+});
+</script>
+</body>
+</html>
